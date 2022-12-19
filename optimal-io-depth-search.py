@@ -4,7 +4,6 @@ from typing import Any, Union
 from utils.parsers import get_file, parse_config
 from utils.models import FioBase
 from argparse import ArgumentParser, Namespace
-from utils.fio_runner import FioRunner
 # Read configs in
 
 
@@ -28,8 +27,9 @@ class FioOptimizer:
         if config is None:
             config = []
 
-    def find_optimal_iodepth(self):
-        FioRunner.run_fio(params=self.config)
+    def find_optimal_iodepth(self) -> None:
+        io_depth = 1    # gotta start some where
+        FioBase.run_fio(params=self.config)
 
 # Create obj to store results
 # run first "wave" of tests
@@ -50,7 +50,7 @@ class FioOptimizer:
 # display/return results
 
 
-def parse_args() -> (object, Namespace):
+def parse_args() -> Namespace:
     parser = ArgumentParser(description="Optimizer for fio")
     parser.add_argument('-v', '--verbose',
                         action='store_true', help="Displays verbose output")
@@ -64,7 +64,7 @@ def parse_args() -> (object, Namespace):
                         action='store', help='path to config file')
 
     args = parser.parse_args()
-    return parser, args
+    return args
 
 
 def main():
