@@ -28,7 +28,7 @@ class FioBase:
         return str(self.to_json())
 
     @staticmethod
-    def prepare_args(params: list) -> list:
+    def prepare_args(params: list or dict) -> list:
         param_list: list = ['--output-format=json']
         for param in params:
             param_list.append(param[0])
@@ -58,3 +58,29 @@ class FioBase:
         except json.JSONDecodeError:
             raise RuntimeError('Failed to Parse FIO Output')
 
+# region comparison methods
+    def __lt__(self, other):
+        if self.total_bandwidth < other.total_bandwidth: 
+            return True
+        return False
+    def __le__(self, other):
+        if self.total_bandwidth <= other.total_bandwidth: 
+            return True
+        return False
+    def __eq__(self, other):
+        if self.total_bandwidth == other.total_bandwidth: 
+            return True
+        return False
+    def __ne__(self, other):
+        if self.total_bandwidth != other.total_bandwidth: 
+            return True
+        return False
+    def __gt__(self, other):
+        if self.total_bandwidth > other.total_bandwidth: 
+            return True
+        return False
+    def __ge__(self, other):
+        if self.total_bandwidth >= other.total_bandwidth: 
+            return True
+        return False
+#endregion compairson
