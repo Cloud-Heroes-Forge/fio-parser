@@ -29,3 +29,6 @@ def lat_conversion(line: str) -> float:
     elif line[5] == 's':
         lat = lat * 10 ** 3
     return lat
+
+def average(x: int, y: int):
+    return (x + y) // 2

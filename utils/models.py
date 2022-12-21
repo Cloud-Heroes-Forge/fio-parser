@@ -15,6 +15,8 @@ class FioBase:
         self.timestamp: datetime = None
         self.duration: float = 0
         self.total_iops: float = 0
+        self.io_depth: int = 0
+        self.jobs: int = 0
         self.ERROR_CODE = None
         self.summarize()
 
