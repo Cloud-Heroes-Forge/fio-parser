@@ -1,4 +1,5 @@
 import argparse
+import subprocess
 from typing import Any, Union
 from math import floor
 from utils.parsers import get_file, parse_config
@@ -23,14 +24,16 @@ class FioOptimizer:
                  optimal_queue_depth: int = 0,
                  config: dict = None, 
                  min: int = 1,
-                 max: int = 65536):
+                 max: int = 65536, 
+                 slices: int = 5):
 
-        if runs is None:
-            runs = {}
-        if config is None:
-            config = {}
+        self.runs: dict[int, FioBase] = {} if runs is None else runs
+        self.config: dict[str, Any] = {} if config is None else config
+        self.best_run: FioBase = best_run
+        self.optimal_queue_depth: int = optimal_queue_depth
         self.min: int = min
         self.max: int = max
+        self.slices: int = slices
 
     def find_optimal_iodepth(self) -> None:
         is_optimial: bool = False
@@ -42,18 +45,23 @@ class FioOptimizer:
             self.runs[io_depth] = fio_run
 
         while not is_optimial: 
+            tested_iodepths: list[int] = []
             if max.io_depth - min.io_depth <= 1:
                 self.best_run = max if max.total_iops > min.total_iops else min 
                 is_optimial: bool = True
             else:
-                next_iodepth: int = floor(average(max.io_depth, min.io_depth))
-                self.config['io_depth'] = next_iodepth
-                fio_run = self.prepare_and_run_fio(io_depth=next_iodepth)
-                self.runs[next_iodepth] = fio_run
-                if average(self.min.total_iops, fio_run.total_iops) > average(fio_run.total_iops, self.max.total_iops):
-                    self.max = fio_run.io_depth
-                else: 
-                    self.min = fio_run.io_depth
+                for next_iodepth in range(min, max, abs((max-min)/self.slices)):
+                # next_iodepth: int = floor(average(max.io_depth, min.io_depth))
+                    if next_iodepth in tested_iodepths:
+                        continue
+                    self.config['io_depth'] = next_iodepth
+                    fio_run = self.prepare_and_run_fio(io_depth=next_iodepth)
+                    self.runs[next_iodepth] = fio_run
+                    tested_iodepths.append(fio_run)
+                    if average(self.runs[min].total_iops, fio_run.total_iops) > average(fio_run.total_iops, self.runs[max].total_iops):
+                        self.max = fio_run.io_depth
+                    else: 
+                        self.min = fio_run.io_depth
 
         
         # test limits (min, max)
@@ -86,24 +94,18 @@ class FioOptimizer:
 
     def prepare_and_run_fio(self, io_depth: int) -> FioBase:
         print("Running Test with IO Depth = {0}".format(io_depth))
-        fio_args: list = FioBase.prepare_args(self.config)
-        fio_run_process: object = FioBase.run_fio(params=fio_args)
+        param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
+        print(f"args: {param_list}")
+        # fio_run_process: object = FioBase.run_fio(params=param_list)
+        fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
         fio_run: FioBase = FioBase()
         fio_run.parse_stdout(fio_run_process.stdout)
+        return fio_run
 
 # pick a job count equal to number of CPUs
 #   Grab NIC speed as "target" maximum
 # decide which test to iterate next
-
-    def compare_run_throughput(self, new_run: FioBase) -> bool:
-        if new_run.total_bandwidth > self.best_run.total_bandwidth:
-            self.best_run = new_run
-            return True
-        return False
-
-
 # decide if we can/need to iterate more
-
 # parse results
 # display/return results
 

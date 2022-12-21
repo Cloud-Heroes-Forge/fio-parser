@@ -31,18 +31,19 @@ class FioBase:
         return str(self.to_json())
 
     @staticmethod
-    def prepare_args(params: list or dict) -> list:
-        param_list: list = ['--output-format=json']
-        for param in params:
-            param_list.append(param[0])
-            if param[1]:
-                param_list.append(param[1])
+    def prepare_args(params: dict) -> list:
+        # print(params)
+        # new_params = {} if params is None else params
+        # new_params["--output-format"] = 'json'
+        param_list = [f"{k}={v}" if v else f"{k}" for k, v in params.items()]
+        # for k, v in new_params.items():
+        #     param_list.append("{0}={1}".format(k, v))
         return param_list
 
     @staticmethod
     def run_fio(params: list) -> object:
-        param_list: list = FioBase.prepare_args(params)
-        fio_process = subprocess.run(['fio'] + param_list, capture_output=True)
+        fio_process = subprocess.run(['fio'] + params, capture_output=True)
+        print(f"Fio Return code: {fio_process}")
         return fio_process
 
 
