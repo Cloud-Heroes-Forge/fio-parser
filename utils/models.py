@@ -16,6 +16,7 @@ class FioBase:
         self.duration: float = 0
         self.total_iops: float = 0
         self.ERROR_CODE = None
+        self.summarize()
 
     def summarize(self) -> None:
         self.total_iops = self.write_iops + self.read_iops
@@ -60,27 +61,20 @@ class FioBase:
 
 # region comparison methods
     def __lt__(self, other):
-        if self.total_bandwidth < other.total_bandwidth: 
-            return True
-        return False
+        return (self.total_bandwidth < other.total_bandwidth)
+    
     def __le__(self, other):
-        if self.total_bandwidth <= other.total_bandwidth: 
-            return True
-        return False
+        return (self.total_bandwidth <= other.total_bandwidth)
+    
     def __eq__(self, other):
-        if self.total_bandwidth == other.total_bandwidth: 
-            return True
-        return False
+        return (self.total_bandwidth == other.total_bandwidth)
+    
     def __ne__(self, other):
-        if self.total_bandwidth != other.total_bandwidth: 
-            return True
-        return False
+        return (self.total_bandwidth != other.total_bandwidth)
+    
     def __gt__(self, other):
-        if self.total_bandwidth > other.total_bandwidth: 
-            return True
-        return False
+        return (self.total_bandwidth > other.total_bandwidth)
+    
     def __ge__(self, other):
-        if self.total_bandwidth >= other.total_bandwidth: 
-            return True
-        return False
-#endregion compairson
+        return (self.total_bandwidth >= other.total_bandwidth)
+# endregion comparison methods

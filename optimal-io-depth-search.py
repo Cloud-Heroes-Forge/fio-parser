@@ -13,26 +13,45 @@ class FioOptimizer:
     """
     best_run: FioBase
     optimal_queue_depth: int
-    config: list
-    runs: list
+    config: dict
+    runs: dict
 
     def __init__(self,
-                 runs: list = None,
+                 runs: dict = None,
                  best_run: FioBase = None,
                  optimal_queue_depth: int = 1,
-                 config: list = None):
+                 config: dict = None):
 
         if runs is None:
-            runs = []
+            runs = {}
         if config is None:
-            config = []
+            config = {}
 
     def find_optimal_iodepth(self) -> None:
-        io_depth = 1    # gotta start some where
-        FioBase.run_fio(params=self.config)
+        is_optimial: bool = False
+        starting_io_depths: list = [1, 20, 60, 120]    # gotta start some where
 
-# Create obj to store results
-# run first "wave" of tests
+        for io_depth in starting_io_depths:
+            self.config['io_depth'] = io_depth
+            fio_run = self.prepare_and_run_fio(io_depth=io_depth)
+            self.runs[io_depth] = fio_run
+
+        while not is_optimial:
+            sorted_runs_by_iops = sorted(self.runs, key=self.runs.get('total_iops'), reverse=True)
+            # are we going up or down?
+            if sorted_runs_by_iops[0] - sorted_runs_by_iops[1] <= 1:
+                is_optimial = True
+                self.optimal_queue_depth = sorted_runs_by_iops[0]
+                return 
+            else: 
+                self.prepare_and_run_fio(io_depth=)
+
+    def prepare_and_run_fio(self, io_depth: int) -> FioBase:
+        fio_args: list = FioBase.prepare_args(self.config)
+        fio_run_process: object = FioBase.run_fio(params=fio_args)
+        fio_run: FioBase = FioBase()
+        fio_run.parse_stdout(fio_run_process.stdout)
+
 # pick a job count equal to number of CPUs
 #   Grab NIC speed as "target" maximum
 # decide which test to iterate next
