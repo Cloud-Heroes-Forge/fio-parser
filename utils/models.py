@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 import subprocess
 from utils.converters import average
-from typing import Any
+from typing import Any, List
 class FioBase:
     def __init__(self):
         self.read_bandwidth: float = 0
@@ -20,11 +20,15 @@ class FioBase:
         self.io_depth: int = 0
         self.jobs: int = 0
         self.ERROR_CODE = None
+        self.iops_latency_ratio: float = 0
+        self.avg_latency: float = 0
         self.summarize()
 
     def summarize(self) -> None:
         self.total_iops = self.write_iops + self.read_iops
         self.total_bandwidth = self.read_bandwidth + self.write_bandwidth
+        self.avg_latency = (self.write_latency + self.read_latency) / 2
+        self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
 
     def to_json(self) -> json:
         return json.dumps(self.__dict__)
@@ -67,22 +71,22 @@ class FioBase:
 
 # region comparison methods
     def __lt__(self, other):
-        return (self.total_bandwidth < other.total_bandwidth)
+        return (self.iops_latency_ratio < other.iops_latency_ratio)
     
     def __le__(self, other):
-        return (self.total_bandwidth <= other.total_bandwidth)
+        return (self.iops_latency_ratio <= other.iops_latency_ratio)
     
     def __eq__(self, other):
-        return (self.total_bandwidth == other.total_bandwidth)
+        return (self.iops_latency_ratio == other.iops_latency_ratio)
     
     def __ne__(self, other):
-        return (self.total_bandwidth != other.total_bandwidth)
+        return (self.iops_latency_ratio != other.iops_latency_ratio)
     
     def __gt__(self, other):
-        return (self.total_bandwidth > other.total_bandwidth)
+        return (self.iops_latency_ratio > other.iops_latency_ratio)
     
     def __ge__(self, other):
-        return (self.total_bandwidth >= other.total_bandwidth)
+        return (self.iops_latency_ratio >= other.iops_latency_ratio)
 # endregion comparison methods
 
 class FioOptimizer:
@@ -95,51 +99,64 @@ class FioOptimizer:
                  max: int = 65536, 
                  slices: int = 5):
 
-        self.runs: dict[int, FioBase] = {} if runs is None else runs
-        self.config: dict[str, Any] = {} if config is None else config
+        self.runs: dict = {} if runs is None else runs
+        self.config: dict = {} if config is None else config
         self.best_run: FioBase = best_run
         self.optimal_queue_depth: int = optimal_queue_depth
         self.min: int = min
         self.max: int = max
         self.slices: int = slices
+        self.tested_iodepths: list[int] = []
 
     def find_optimal_iodepth(self) -> None:
         is_optimial: bool = False
-        starting_io_depths: list = [self.min, self.max]    # gotta start some where
-        tested_iodepths: list[int] = []
-        for io_depth in starting_io_depths:
-            self.config['--iodepth'] = io_depth
-            fio_run = self.prepare_and_run_fio(io_depth=io_depth)
-            self.runs[io_depth] = fio_run
-            tested_iodepths.append(io_depth)
-
+        
         while not is_optimial: 
-           
+            # Test minimum io_depth and maximum io_depth
+            self.prepare_and_run_fio(io_depths=[self.min, self.max])    
+            # Check if min and max are 1 away from each other, if so determine which of the two are better and that is the optimal io depth        
             if (self.max - self.min) <= 1:
-                self.best_run = self.runs[self.max] if self.runs[self.max].total_iops > self.runs[self.min].total_iops else self.runs[self.min] 
+                self.best_run = self.runs[self.max] if self.runs[self.max].iops_latency_ratio > self.runs[self.min].iops_latency_ratio else self.runs[self.min] 
                 is_optimial: bool = True
+                print(f"\nOptimal IO Depth: {self.best_run.io_depth}" + \
+                      f"IOPS              : {self.best_run.total_iops}" + \
+                      f"Latency           : {self.best_run.avg_latency} µs" + \
+                      f"Throughput        : {self.best_run.total_bandwidth}  KiBps")
             else:
-                for next_iodepth in range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1)):
-                # next_iodepth: int = floor(average(max.io_depth, min.io_depth))
-                    if next_iodepth in tested_iodepths or next_iodepth <= 0:
-                        continue
-                    self.config['--iodepth'] = next_iodepth
-                    fio_run = self.prepare_and_run_fio(io_depth=next_iodepth)
-                    self.runs[next_iodepth] = fio_run
-                    tested_iodepths.append(next_iodepth)
-                    if average(self.runs[self.min].total_iops, fio_run.total_iops) > average(fio_run.total_iops, self.runs[self.max].total_iops):
-                        self.max = fio_run.io_depth
-                    else: 
-                        self.min = fio_run.io_depth
+                # take a range of values spaced equally between minimum and maximum and test each one
+                next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
+                self.prepare_and_run_fio(next_iodepths)
 
-    def prepare_and_run_fio(self, io_depth: int) -> FioBase:
-        print("Running Test with IO Depth = {0}".format(io_depth))
-        param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
-        # print(f"args: {param_list}")
-        # fio_run_process: object = FioBase.run_fio(params=param_list)
-        fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
-        fio_run: FioBase = FioBase()
-        fio_run.io_depth = io_depth
-        print("parsing output for IO Depth = {0}".format(io_depth))
-        fio_run.parse_stdout(fio_run_process.stdout)
-        return fio_run
+            # if average(self.runs[self.max].iops_latency_ratio, fio_run.iops_latency_ratio) > average(fio_run.iops_latency_ratio, self.runs[self.min].iops_latency_ratio):
+            #     self.max = (fio_run.io_depth + self.runs[self.max].io_depth) // 2
+            # else: 
+            #     self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
+
+    def prepare_and_run_fio(self, io_depths: List[int]) -> None:
+        for io_depth in io_depths:
+            if io_depth in self.tested_iodepths or io_depth <= 0:
+                continue
+            print("Running Test with IO Depth = {0}".format(io_depth))
+            self.config['--iodepth'] = io_depth
+ 
+ 
+            param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
+
+            fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
+            fio_run: FioBase = FioBase()
+            fio_run.io_depth = io_depth
+            print("parsing output for IO Depth = {0}".format(io_depth))
+
+            fio_run.parse_stdout(fio_run_process.stdout)
+
+            self.runs[io_depth] = fio_run
+            self.tested_iodepths.append(io_depth)
+
+            if io_depth > (self.max // 2):
+                if (fio_run > self.runs[self.max]):
+                    self.max = (fio_run.io_depth + self.runs[self.max].io_depth) // 2
+                    print(f"Setting Max as: {self.max}")
+            else:
+                if fio_run > self.runs[self.min]: 
+                    self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
+                    print(f"Setting Min as: {self.min}")

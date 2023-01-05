@@ -37,7 +37,7 @@ def parse_args() -> Namespace:
     args = parser.parse_args()
     return args
 
-
+    #python optimizer.py --min=50 --max=900
 def main():
     # region parse input and config file
     arg_parser, args = parse_args()
