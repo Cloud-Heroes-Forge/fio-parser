@@ -3,6 +3,7 @@ from datetime import datetime
 import subprocess
 from utils.converters import average
 from typing import Any, List
+import pandas as pd
 class FioBase:
     def __init__(self):
         self.read_bandwidth: float = 0
@@ -65,7 +66,7 @@ class FioBase:
             self.duration = json_result['jobs'][0]['elapsed']
             self.timestamp = json_result['time']
             self.summarize()
-            print(self)
+            # print(self)
         except json.JSONDecodeError:
             raise RuntimeError('Failed to Parse FIO Output')
 
@@ -97,7 +98,7 @@ class FioOptimizer:
                  config: dict = None, 
                  min: int = 1,
                  max: int = 65536, 
-                 slices: int = 5):
+                 slices: int = 3):
 
         self.runs: dict = {} if runs is None else runs
         self.config: dict = {} if config is None else config
@@ -113,20 +114,31 @@ class FioOptimizer:
         
         while not is_optimial: 
             # Test minimum io_depth and maximum io_depth
+            print(f"min: {self.min}\t max: {self.max}")
             self.prepare_and_run_fio(io_depths=[self.min, self.max])    
             # Check if min and max are 1 away from each other, if so determine which of the two are better and that is the optimal io depth        
             if (self.max - self.min) <= 1:
                 self.best_run = self.runs[self.max] if self.runs[self.max].iops_latency_ratio > self.runs[self.min].iops_latency_ratio else self.runs[self.min] 
                 is_optimial: bool = True
-                print(f"\nOptimal IO Depth: {self.best_run.io_depth}" + \
-                      f"IOPS              : {self.best_run.total_iops}" + \
-                      f"Latency           : {self.best_run.avg_latency} µs" + \
-                      f"Throughput        : {self.best_run.total_bandwidth}  KiBps")
+                print(f"Optimal IO Depth: {self.best_run.io_depth}\n" + \
+                      f"IOPS              : {self.best_run.total_iops}\n" + \
+                      f"Latency           : {self.best_run.avg_latency} µs\n" + \
+                      f"Throughput        : {self.best_run.total_bandwidth}  KiBps\n")
             else:
                 # take a range of values spaced equally between minimum and maximum and test each one
                 next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
                 self.prepare_and_run_fio(next_iodepths)
 
+            
+            sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
+            self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
+            self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
+            # if sorted_runs[0][0] > (self.max // 2):
+            #     self.max = (self.max - )
+            #     print(f"Setting Max as: {self.max}")
+            # else:
+            #     self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
+            #     print(f"Setting Min as: {self.min}")
             # if average(self.runs[self.max].iops_latency_ratio, fio_run.iops_latency_ratio) > average(fio_run.iops_latency_ratio, self.runs[self.min].iops_latency_ratio):
             #     self.max = (fio_run.io_depth + self.runs[self.max].io_depth) // 2
             # else: 
@@ -145,18 +157,15 @@ class FioOptimizer:
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
             fio_run: FioBase = FioBase()
             fio_run.io_depth = io_depth
-            print("parsing output for IO Depth = {0}".format(io_depth))
+            # print("parsing output for IO Depth = {0}".format(io_depth))
 
             fio_run.parse_stdout(fio_run_process.stdout)
 
             self.runs[io_depth] = fio_run
             self.tested_iodepths.append(io_depth)
 
-            if io_depth > (self.max // 2):
-                if (fio_run > self.runs[self.max]):
-                    self.max = (fio_run.io_depth + self.runs[self.max].io_depth) // 2
-                    print(f"Setting Max as: {self.max}")
-            else:
-                if fio_run > self.runs[self.min]: 
-                    self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
-                    print(f"Setting Min as: {self.min}")
+    def to_DataFrame(self) -> object:
+        return pd.DataFrame([x.__dict__ for x in self.runs.values()])
+        
+
+
