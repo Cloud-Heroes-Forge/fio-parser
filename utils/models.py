@@ -109,6 +109,9 @@ class FioOptimizer:
         self.slices: int = slices
         self.tested_iodepths: list[int] = []
 
+        # Think about tuning for read/write ratio
+        # store state file (csv maybe), read that state file in on load and just return data 
+
     def find_optimal_iodepth(self) -> None:
         is_optimial: bool = False
         
@@ -147,6 +150,7 @@ class FioOptimizer:
     def prepare_and_run_fio(self, io_depths: List[int]) -> None:
         for io_depth in io_depths:
             if io_depth in self.tested_iodepths or io_depth <= 0:
+                # TODO add checking if io_depth is using the same blocksize and r/w ratio
                 continue
             print("Running Test with IO Depth = {0}".format(io_depth))
             self.config['--iodepth'] = io_depth
