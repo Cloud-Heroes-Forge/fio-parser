@@ -159,6 +159,9 @@ class FioOptimizer:
             param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
 
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
+            if fio_run_process.returncode != 0:
+                raise RuntimeError(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
+            
             fio_run: FioBase = FioBase()
             fio_run.io_depth = io_depth
             # print("parsing output for IO Depth = {0}".format(io_depth))
