@@ -2,7 +2,7 @@ import argparse
 import subprocess
 from typing import Any, Union
 from math import floor
-from utils.parsers import get_file, parse_config
+from utils.parsers import get_file, parse_fio_config
 from utils.models import FioOptimizer
 from argparse import ArgumentParser, Namespace
 # Read configs in
@@ -17,22 +17,22 @@ from argparse import ArgumentParser, Namespace
 # display/return results
 
 
-def parse_args() -> Namespace:
+def arg_parser_seetup() -> Namespace:
     parser = ArgumentParser(description="Optimizer for fio")
     parser.add_argument('-v', '--verbose',
                         action='store_true', help="Displays verbose output")
-    parser.add_argument('-bs', '--blocksize', type=int,
+    parser.add_argument('-bs', '--blocksize', type=int, default="8K", 
                         action='store_const', help='Block Size in Kilobytes')
-    parser.add_argument('-min', '--minimum', type=int,
+    parser.add_argument('-min', '--minimum', type=int, default=1, 
                         action='store_const', help='Minimum IO Depth')
-    parser.add_argument('-max', '--maximum', type=int,
+    parser.add_argument('-max', '--maximum', type=int, default=65536, 
                         action='store_const', help='Maximum IO Depth')
     parser.add_argument('-h', '--help', type=int,
                         action='store_true', help='Display Usage')
     parser.add_argument('-s', '--silent',
                         action='store_true', help='Suppresses standard output')
-    parser.add_argument('-c', '--config', default='optimal-io-depth-search.config',
-                        action='store', help='path to config file')
+    parser.add_argument('-c', '--config', default='fio.ini',
+                        action='store', help='path to config file. Defaults to fio.ini')
 
     args = parser.parse_args()
     return args
@@ -40,8 +40,8 @@ def parse_args() -> Namespace:
     #python optimizer.py --min=50 --max=900
 def main():
     # region parse input and config file
-    arg_parser, args = parse_args()
-    fio_config = parse_config(**args.config)
+    arg_parser, args = arg_parser_seetup()
+    fio_config = parse_fio_config(**args.config)
     if not fio_config:
         arg_parser.print_help()
         exit(418)

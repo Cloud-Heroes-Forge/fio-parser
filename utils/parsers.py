@@ -14,10 +14,10 @@ def get_file(_filename):
         return False
 
 
-def parse_config(_filename) -> object or bool:
+def parse_fio_config(_filename) -> object or bool:
     conf = configparser.ConfigParser()
     try:
         conf.read(_filename)
-        return conf.items('fio', raw=True)
-    except configparser.ParsingError:
-        return False
+        return dict(conf.items('global', raw=True))     # return all of the items in the global section as a dict
+    except configparser.Erorr:
+        raise configparser.ParsingError(f"Unable to parse {_filename}")
