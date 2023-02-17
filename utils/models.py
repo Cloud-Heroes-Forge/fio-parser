@@ -4,6 +4,8 @@ import subprocess
 from utils.converters import average
 from typing import Any, List
 import pandas as pd
+import configparser
+
 class FioBase:
     def __init__(self):
         self.read_bandwidth: float = 0
@@ -69,7 +71,7 @@ class FioBase:
             # print(self)
         except json.JSONDecodeError:
             raise RuntimeError('Failed to Parse FIO Output')
-
+ 
 # region comparison methods
     def __lt__(self, other):
         return (self.iops_latency_ratio < other.iops_latency_ratio)
@@ -117,25 +119,26 @@ class FioOptimizer:
         
         while not is_optimial: 
             # Test minimum io_depth and maximum io_depth
-            print(f"min: {self.min}\t max: {self.max}")
-            self.prepare_and_run_fio(io_depths=[self.min, self.max])    
-            # Check if min and max are 1 away from each other, if so determine which of the two are better and that is the optimal io depth        
+            print(f"min: {self.min}\t max: {self.max}") 
+            self.prepare_and_run_fio(io_depths=[self.min, self.max])   
+            # Check if min and max are 1 away from each other, 
+            #   if so determine which of the two are better and that is the optimal io depth        
             if (self.max - self.min) <= 1:
-                self.best_run = self.runs[self.max] if self.runs[self.max].iops_latency_ratio > self.runs[self.min].iops_latency_ratio else self.runs[self.min] 
-                is_optimial: bool = True
+                self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min] else self.runs[self.min] 
+                is_optimial = True
                 print(f"Optimal IO Depth: {self.best_run.io_depth}\n" + \
                       f"IOPS              : {self.best_run.total_iops}\n" + \
                       f"Latency           : {self.best_run.avg_latency} µs\n" + \
                       f"Throughput        : {self.best_run.total_bandwidth}  KiBps\n")
-            else:
-                # take a range of values spaced equally between minimum and maximum and test each one
-                next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
-                self.prepare_and_run_fio(next_iodepths)
-
+                continue
+            # take a range of values spaced equally between minimum and maximum and test each one
+            next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
+            self.prepare_and_run_fio(next_iodepths)
             
             sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
             self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
             self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
+            self.prepare_and_run_fio(io_depths=[self.min, self.max])  
             # if sorted_runs[0][0] > (self.max // 2):
             #     self.max = (self.max - )
             #     print(f"Setting Max as: {self.max}")
@@ -159,9 +162,6 @@ class FioOptimizer:
             param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
 
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
-            if fio_run_process.returncode != 0:
-                raise RuntimeError(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
-            
             fio_run: FioBase = FioBase()
             fio_run.io_depth = io_depth
             # print("parsing output for IO Depth = {0}".format(io_depth))
@@ -174,5 +174,14 @@ class FioOptimizer:
     def to_DataFrame(self) -> object:
         return pd.DataFrame([x.__dict__ for x in self.runs.values()])
         
+    def to_csv(self, filename: str) -> None:
+        self.to_DataFrame().to_csv(filename)
 
-
+    # Method to read in a configuration ini file and return a dictionary of the values
+    def read_config(self, filename: str) -> dict:
+        config = configparser.ConfigParser()
+        config.read(filename)
+        # drop rows with no values
+        config = {k: v for k, v in config.items() if v}
+        return config['DEFAULT']
+    

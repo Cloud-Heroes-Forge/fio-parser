@@ -5,8 +5,18 @@ from math import floor
 from utils.parsers import get_file, parse_fio_config
 from utils.models import FioOptimizer
 from argparse import ArgumentParser, Namespace
+import smtplib as mail
 # Read configs in
 
+# function that sends json results and notification emails
+def send_results(results: any, emails: list) -> None:
+    if not emails or not results:
+        return
+    # send email
+    mail = mail.SMTP('smtp.corp.netapp.com', 25)
+    mail.sendmail('fioOptimizer@netapp.com', emails, results)
+    mail.quit()
+    return
 
 
 # pick a job count equal to number of CPUs
@@ -33,7 +43,8 @@ def arg_parser_seetup() -> Namespace:
                         action='store_true', help='Suppresses standard output')
     parser.add_argument('-c', '--config', default='fio.ini',
                         action='store', help='path to config file. Defaults to fio.ini')
-
+    parser.add_argument('-e', '--email', nargs='+', 
+                        action='store', help='list of emails to send notifications')
     args = parser.parse_args()
     return args
 
@@ -41,7 +52,7 @@ def arg_parser_seetup() -> Namespace:
 def main():
     # region parse input and config file
     arg_parser, args = arg_parser_seetup()
-    fio_config = parse_fio_config(**args.config)
+    fio_config = parse_fio_config(**args['config'])
     if not fio_config:
         arg_parser.print_help()
         exit(418)
@@ -51,8 +62,16 @@ def main():
                        min=args['min'],
                        max=args['max'])
     fio.find_optimal_iodepth()
-    # do something with the output
+    print(fio.best_run)
+    # Save the DataFrame to a csv file
+    fio.to_DataFrame().to_csv('fio.csv')
+    # Save the DataFrame to a json file 
+    fio.to_DataFrame().to_json('fio.json')
+    # endregion prep fio objects
 
+    # region send email notifications 
+    if args['email']:
+        send_results(fio.to_DataFrame().to_json(), args['email'])
     # endregion
 
 
