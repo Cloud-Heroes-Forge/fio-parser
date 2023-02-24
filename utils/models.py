@@ -4,7 +4,9 @@ import subprocess
 from utils.converters import average
 from typing import Any, List
 import pandas as pd
+import logging
 import configparser
+from os import path
 
 class FioBase:
     def __init__(self):
@@ -33,18 +35,21 @@ class FioBase:
         self.avg_latency = (self.write_latency + self.read_latency) / 2
         self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
 
-    def to_json(self) -> json:
-        return json.dumps(self.__dict__)
+    def to_json(self) -> str:
+        try: 
+            return json.dumps(self.__dict__)
+        except json.JSONDecodeError as e:
+            raise Exception(f"Error converting fio output to JSON: {e.msg}")
 
     def __str__(self) -> str:
-        return str(self.to_json())
+        return self.to_json()
 
     @staticmethod
     def prepare_args(params: dict) -> list:
         # print(params)
         # new_params = {} if params is None else params
         # new_params["--output-format"] = 'json'
-        param_list = [f"{k}={v}" if v else f"{k}" for k, v in params.items()]
+        param_list: list = [f"{k}={v}" if v else f"{k}" for k, v in params.items()]
         # for k, v in new_params.items():
         #     param_list.append("{0}={1}".format(k, v))
         return param_list
@@ -52,7 +57,7 @@ class FioBase:
     @staticmethod
     def run_fio(params: list) -> object:
         fio_process = subprocess.run(['fio'] + params, capture_output=True)
-        print(f"Fio Return code: {fio_process}")
+        logging.INFO(f"Fio Return code: {fio_process}")
         return fio_process
 
 
@@ -71,7 +76,7 @@ class FioBase:
             # print(self)
         except json.JSONDecodeError:
             raise RuntimeError('Failed to Parse FIO Output')
- 
+
 # region comparison methods
     def __lt__(self, other):
         return (self.iops_latency_ratio < other.iops_latency_ratio)
@@ -96,22 +101,20 @@ class FioOptimizer:
     def __init__(self,
                  runs: dict = None,
                  best_run: FioBase = None,
-                 optimal_queue_depth: int = 0,
                  config: dict = None, 
                  min: int = 1,
                  max: int = 65536, 
                  slices: int = 3):
 
-        self.runs: dict = {} if runs is None else runs
-        self.config: dict = {} if config is None else config
+        self.runs: dict = runs if runs else {}
+        self.config: dict = config if config else {}
         self.best_run: FioBase = best_run
-        self.optimal_queue_depth: int = optimal_queue_depth
+        self.optimal_queue_depth: int = None
         self.min: int = min
         self.max: int = max
         self.slices: int = slices
         self.tested_iodepths: list[int] = []
 
-        # Think about tuning for read/write ratio
         # store state file (csv maybe), read that state file in on load and just return data 
 
     def find_optimal_iodepth(self) -> None:
@@ -119,49 +122,44 @@ class FioOptimizer:
         
         while not is_optimial: 
             # Test minimum io_depth and maximum io_depth
-            print(f"min: {self.min}\t max: {self.max}") 
-            self.prepare_and_run_fio(io_depths=[self.min, self.max])   
+            logging.info(f"min: {self.min}\t max: {self.max}")
+            self.prepare_and_run_fio(io_depths=[self.min, self.max])    
             # Check if min and max are 1 away from each other, 
-            #   if so determine which of the two are better and that is the optimal io depth        
+            # if so determine which of the two are better and that is the optimal io depth        
             if (self.max - self.min) <= 1:
-                self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min] else self.runs[self.min] 
-                is_optimial = True
-                print(f"Optimal IO Depth: {self.best_run.io_depth}\n" + \
-                      f"IOPS              : {self.best_run.total_iops}\n" + \
-                      f"Latency           : {self.best_run.avg_latency} µs\n" + \
-                      f"Throughput        : {self.best_run.total_bandwidth}  KiBps\n")
-                continue
-            # take a range of values spaced equally between minimum and maximum and test each one
-            next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
-            self.prepare_and_run_fio(next_iodepths)
+                self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
+                is_optimial: bool = True
+                logging.debug(f"Optimal IO Depth: {self.best_run.io_depth}\n" + \
+                              f"IOPS            : {self.best_run.total_iops}\n" + \
+                              f"Latency         : {self.best_run.avg_latency} µs\n" + \
+                              f"Throughput      : {self.best_run.total_bandwidth}  KiBps\n")
+            else:
+                # take a range of values spaced equally between minimum and maximum and test each one
+                next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
+                self.prepare_and_run_fio(next_iodepths)
+
             
             sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
             self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
             self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
-            self.prepare_and_run_fio(io_depths=[self.min, self.max])  
-            # if sorted_runs[0][0] > (self.max // 2):
-            #     self.max = (self.max - )
-            #     print(f"Setting Max as: {self.max}")
-            # else:
-            #     self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
-            #     print(f"Setting Min as: {self.min}")
-            # if average(self.runs[self.max].iops_latency_ratio, fio_run.iops_latency_ratio) > average(fio_run.iops_latency_ratio, self.runs[self.min].iops_latency_ratio):
-            #     self.max = (fio_run.io_depth + self.runs[self.max].io_depth) // 2
-            # else: 
-            #     self.min = (fio_run.io_depth + self.runs[self.min].io_depth) // 2
+
 
     def prepare_and_run_fio(self, io_depths: List[int]) -> None:
+        # TODO Add config to INI if passing at cmdline doesn't work for multi host 2/21/2023  
         for io_depth in io_depths:
             if io_depth in self.tested_iodepths or io_depth <= 0:
                 # TODO add checking if io_depth is using the same blocksize and r/w ratio
                 continue
-            print("Running Test with IO Depth = {0}".format(io_depth))
+            logging.info("Running Test with IO Depth = {0}".format(io_depth))
             self.config['--iodepth'] = io_depth
  
  
             param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
 
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
+            if fio_run_process.returncode != 0:
+                raise RuntimeError(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
+            
             fio_run: FioBase = FioBase()
             fio_run.io_depth = io_depth
             # print("parsing output for IO Depth = {0}".format(io_depth))
@@ -170,18 +168,38 @@ class FioOptimizer:
 
             self.runs[io_depth] = fio_run
             self.tested_iodepths.append(io_depth)
+            return 
 
     def to_DataFrame(self) -> object:
         return pd.DataFrame([x.__dict__ for x in self.runs.values()])
-        
-    def to_csv(self, filename: str) -> None:
-        self.to_DataFrame().to_csv(filename)
 
-    # Method to read in a configuration ini file and return a dictionary of the values
-    def read_config(self, filename: str) -> dict:
-        config = configparser.ConfigParser()
-        config.read(filename)
-        # drop rows with no values
-        config = {k: v for k, v in config.items() if v}
-        return config['DEFAULT']
+    def to_csv(self) -> object:
+        # call the to_DataFrame function and return a csv
+        return self.to_DataFrame().to_csv()
+
+    def to_json(self) -> object:
+        # call the to_DataFrame function and return a json
+        return self.to_DataFrame().to_json()
     
+
+    
+
+# create a class that access a configuration ini file and returns a dictionary of the configuration
+class FioConfig:
+    def __init__(self, config_file: str = None) -> None:
+        self.config: dict = self.read_config(config_file)
+        
+    # Check if file exists
+    def test_file(self, file: str) -> bool:
+        return path.isfile(file)
+
+    def read_config(self, config_file: str) -> None:
+        if not self.test_file(config_file):
+            logging.error(f"File {config_file} not found")
+            raise FileNotFoundError(f"File {config_file} not found")
+        config_parser = configparser.ConfigParser(allow_no_value=True)
+        config_parser.read(config_file)
+        if not config_parser.has_section('fio'):
+            logging.error("Config file does not have a [fio] section")
+            raise ValueError("Config file does not have a [fio] section")
+        self.config = config_parser['fio']
