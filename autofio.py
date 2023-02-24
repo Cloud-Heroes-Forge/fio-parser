@@ -20,7 +20,7 @@ def arg_parser_setup() -> Namespace:
                         help='Block Size in Kilobytes')
     parser.add_argument('-min', '--minimum', type=int, default=1, 
                         action='store', help='Minimum Queue Depth', choices=range(1, 65536))
-    parser.add_argument('-max', '--maximum', type=int, default=65536, 
+    parser.add_argument('-max', '--maximum', type=int, default=256, 
                         action='store', help='Maximum Queue Depth', choices=range(1, 65536))
     parser.add_argument('-help', '--help', 
                         action='store_true', help='Display Usage')
@@ -39,7 +39,7 @@ def arg_parser_setup() -> Namespace:
 
 def main():
     logging.basicConfig(format='%(asctime)s - %(message)s',
-                        datefmt='%Y-%m-%dT%H:%M:%S.%f%z', 
+                        datefmt='%Y-%m-%dT%H:%M:%S', 
                         filename='autofio.log', 
                         filemode='w', level=logging.INFO)
     args = arg_parser_setup()
