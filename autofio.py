@@ -6,7 +6,8 @@ import sys
 import time
 import json
 import pandas as pd
-from utils.models import FioBase, FioOptimizer, FioConfig
+from utils.models import FioBase, FioOptimizer
+from utils.parsers import parse_fio_config
 from argparse import ArgumentParser, Namespace
 import logging
 def arg_parser_setup() -> Namespace:
@@ -21,13 +22,13 @@ def arg_parser_setup() -> Namespace:
                         action='store', help='Minimum Queue Depth', choices=range(1, 65536))
     parser.add_argument('-max', '--maximum', type=int, default=65536, 
                         action='store', help='Maximum Queue Depth', choices=range(1, 65536))
-    # parser.add_argument('-help', '--help', 
-    #                     action='store_true', help='Display Usage')
+    parser.add_argument('-help', '--help', 
+                        action='store_true', help='Display Usage')
     parser.add_argument('-c', '--config', default='fio.ini',
                         help='path to config file. Defaults to fio.ini')
-    # parser.add_argument('-e', '--email', nargs='+', 
-    #                     action='append', help='list of emails to send notifications')
-    parser.add_argument('-s', '--slices', type=int, default=3,
+    parser.add_argument('-e', '--email', nargs='+', 
+                        action='append', help='list of emails to send notifications')
+    parser.add_argument('-s', '--slices', type=int, default=5,
                         help='Number of slices to divide the IO Depth range into')
     # parser.add_argument('-rw', '--readwrite', nargs='+', default=["50"])
     parser.add_argument('-n', '--name', default="job1", help="Name of the fio job(s). Defaults to job1")
@@ -43,9 +44,11 @@ def main():
                         filemode='w', level=logging.INFO)
     args = arg_parser_setup()
     for blocksize in args.blocksize:
-        fio_optimizer = FioOptimizer()
+        fio_optimizer: FioOptimizer = FioOptimizer()
         # read the config file and parse it into a dictionary with ConfigParser
-        fio_optimizer.config = FioConfig(args.config)
+        parsed_config: dict = parse_fio_config(args.config)
+        logging.debug(f"Parsed Config: {parsed_config}")
+        fio_optimizer.config = parsed_config
         # set other attributes
         fio_optimizer.blocksize = blocksize
         fio_optimizer.minimum = args.minimum if args.minimum > 0 else 1

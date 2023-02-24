@@ -46,12 +46,7 @@ class FioBase:
 
     @staticmethod
     def prepare_args(params: dict) -> list:
-        # print(params)
-        # new_params = {} if params is None else params
-        # new_params["--output-format"] = 'json'
         param_list: list = [f"{k}={v}" if v else f"{k}" for k, v in params.items()]
-        # for k, v in new_params.items():
-        #     param_list.append("{0}={1}".format(k, v))
         return param_list
 
     @staticmethod
@@ -73,7 +68,7 @@ class FioBase:
             self.duration = json_result['jobs'][0]['elapsed']
             self.timestamp = json_result['time']
             self.summarize()
-            # print(self)
+            return
         except json.JSONDecodeError:
             raise RuntimeError('Failed to Parse FIO Output')
 
@@ -103,7 +98,7 @@ class FioOptimizer:
                  best_run: FioBase = None,
                  config: dict = None, 
                  min: int = 1,
-                 max: int = 65536, 
+                 max: int = 256, 
                  slices: int = 3):
 
         self.runs: dict = runs if runs else {}
@@ -137,7 +132,6 @@ class FioOptimizer:
                 # take a range of values spaced equally between minimum and maximum and test each one
                 next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
                 self.prepare_and_run_fio(next_iodepths)
-
             
             sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
             self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
@@ -150,14 +144,14 @@ class FioOptimizer:
             if io_depth in self.tested_iodepths or io_depth <= 0:
                 # TODO add checking if io_depth is using the same blocksize and r/w ratio
                 continue
-            logging.info("Running Test with IO Depth = {0}".format(io_depth))
-            self.config['--iodepth'] = io_depth
- 
- 
-            param_list = [f"{k}={v}" if v else f"{k}" for k, v in self.config.items()]
+            logging.info(f"Running Test with IO Depth = {io_depth}")
+            self.config['iodepth'] = io_depth
+            self.config['output-format'] = 'json'
+            param_list = [f"--{k}={v}" if v else f"--{k}" for k, v in self.config.items()]
 
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
             if fio_run_process.returncode != 0:
+                logging.error(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
                 raise RuntimeError(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
             
             fio_run: FioBase = FioBase()
@@ -182,24 +176,14 @@ class FioOptimizer:
         return self.to_DataFrame().to_json()
     
 
-    
-
 # create a class that access a configuration ini file and returns a dictionary of the configuration
-class FioConfig:
-    def __init__(self, config_file: str = None) -> None:
-        self.config: dict = self.read_config(config_file)
-        
-    # Check if file exists
-    def test_file(self, file: str) -> bool:
-        return path.isfile(file)
-
-    def read_config(self, config_file: str) -> None:
-        if not self.test_file(config_file):
-            logging.error(f"File {config_file} not found")
-            raise FileNotFoundError(f"File {config_file} not found")
-        config_parser = configparser.ConfigParser(allow_no_value=True)
-        config_parser.read(config_file)
-        if not config_parser.has_section('fio'):
-            logging.error("Config file does not have a [fio] section")
-            raise ValueError("Config file does not have a [fio] section")
-        self.config = config_parser['fio']
+def parse_fio_config(config_file: str) -> dict:
+    if not path.isfile(config_file):
+        logging.error(f"File {config_file} not found")
+        raise FileNotFoundError(f"File {config_file} not found")
+    config_parser = configparser.ConfigParser(allow_no_value=True)
+    config_parser.read(config_file)
+    if not config_parser.has_section('global'):
+        logging.error("Config file does not have a [global] section")
+        raise ValueError("Config file does not have a [global] section")
+    return config_parser.items('global')
