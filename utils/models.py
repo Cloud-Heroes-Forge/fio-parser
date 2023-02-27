@@ -16,7 +16,7 @@ class FioBase:
         self.write_bandwidth: float = 0
         self.write_latency: float = 0
         self.write_iops: float = 0
-        # self.read_percent: float = 0
+        self.read_percent: float = 0
         self.total_bandwidth: float = 0
         # self.total_ops: float = 0
         self.timestamp: datetime = None
@@ -37,7 +37,7 @@ class FioBase:
         elif self.write_latency == 0:
             self.avg_latency = self.read_latency
         else:
-            self.avg_latency = (self.write_latency + self.read_latency) / 2
+            self.avg_latency = ((self.read_latency * self.read_iops) + (self.write_latency * self.write_iops)) / self.total_iops
         self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
 
     def to_json(self) -> str:
@@ -152,6 +152,7 @@ class FioOptimizer:
             logging.info(f"Running Test with IO Depth = {io_depth}")
             self.config['iodepth'] = io_depth
             self.config['output-format'] = 'json'
+            
             param_list = [f"--{k}={v}" if v else f"--{k}" for k, v in self.config.items()]
 
             fio_run_process = subprocess.run(['fio'] + param_list, capture_output=True)
