@@ -32,7 +32,12 @@ class FioBase:
     def summarize(self) -> None:
         self.total_iops = self.write_iops + self.read_iops
         self.total_bandwidth = self.read_bandwidth + self.write_bandwidth
-        self.avg_latency = (self.write_latency + self.read_latency) / 2
+        if self.read_latency == 0:
+            self.avg_latency = self.write_latency
+        elif self.write_latency == 0:
+            self.avg_latency = self.read_latency
+        else:
+            self.avg_latency = (self.write_latency + self.read_latency) / 2
         self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
 
     def to_json(self) -> str:
