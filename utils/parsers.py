@@ -1,5 +1,5 @@
 import configparser
-
+import logging
 
 def get_file(_filename):
     """
@@ -15,9 +15,13 @@ def get_file(_filename):
 
 
 def parse_fio_config(_filename) -> object or bool:
-    conf = configparser.ConfigParser()
+    conf = configparser.ConfigParser(allow_no_value=True)
     try:
         conf.read(_filename)
-        return dict(conf.items('global', raw=True))     # return all of the items in the global section as a dict
-    except configparser.Erorr:
-        raise configparser.ParsingError(f"Unable to parse {_filename}")
+        if not conf.has_section('global'):
+            logging.error("Config file does not have a [global] section")
+            raise ValueError("Config file does not have a [global] section")
+        return dict(conf.items('global', raw=True))     # return all of the items in the global section as a dict    
+    except configparser.ParsingError :
+        logging.error(f"Unable to parse {_filename}: {configparser.ParsingError}")
+        raise configparser.ParsingError(f"Unable to parse {_filename}: {configparser.ParsingError}")
