@@ -22,8 +22,6 @@ def arg_parser_setup() -> Namespace:
                         action='store', help='Minimum Queue Depth', choices=range(1, 65536))
     parser.add_argument('-max', '--maximum', type=int, default=256, 
                         action='store', help='Maximum Queue Depth', choices=range(1, 65536))
-    parser.add_argument('-help', '--help', 
-                        action='store_true', help='Display Usage')
     parser.add_argument('-c', '--config', default='fio.ini',
                         help='path to config file. Defaults to fio.ini')
     parser.add_argument('-e', '--email', nargs='+', 
