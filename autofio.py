@@ -19,9 +19,9 @@ def arg_parser_setup() -> Namespace:
     parser.add_argument('-bs', '--blocksize', nargs='+', default=["8K"], 
                         help='Block Size in Kilobytes')
     parser.add_argument('-min', '--minimum', type=int, default=1, 
-                        action='store', help='Minimum Queue Depth', choices=range(1, 65536))
+                        action='store', help='Minimum Queue Depth')
     parser.add_argument('-max', '--maximum', type=int, default=256, 
-                        action='store', help='Maximum Queue Depth', choices=range(1, 65536))
+                        action='store', help='Maximum Queue Depth')
     parser.add_argument('-c', '--config', default='fio.ini',
                         help='path to config file. Defaults to fio.ini')
     parser.add_argument('-e', '--email', nargs='+', 
