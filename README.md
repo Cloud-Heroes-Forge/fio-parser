@@ -1,5 +1,10 @@
 #Note: Only tested with fio version 3.x
 
+# autofio.py 
+
+Auto fio lets you run multiple fio tests and automatically tune some parameters for you. 
+
+
 # fio-parser.py
 This repository contains code used to parse fio normal output (as in non json)
 As well as instructions for installing and running fio in both single and multi instance mode

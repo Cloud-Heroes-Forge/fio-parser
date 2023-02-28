@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 import subprocess
-from utils.converters import average
 from typing import Any, List
 import pandas as pd
 import logging
@@ -10,17 +9,18 @@ from os import path
 
 class FioBase:
     def __init__(self):
-        self.read_bandwidth: float = 0
+        self.read_throughput: float = 0
         self.read_latency: float = 0
         self.read_iops: float = 0
-        self.write_bandwidth: float = 0
+        self.write_throughput: float = 0
         self.write_latency: float = 0
         self.write_iops: float = 0
         self.read_percent: float = 0
-        self.total_bandwidth: float = 0
+        self.total_throughput: float = 0
         # self.total_ops: float = 0
         self.timestamp: datetime = None
         self.duration: float = 0
+        self.blocksize: str = None
         self.total_iops: float = 0
         self.io_depth: int = 0
         self.jobs: int = 0
@@ -31,7 +31,7 @@ class FioBase:
 
     def summarize(self) -> None:
         self.total_iops = self.write_iops + self.read_iops
-        self.total_bandwidth = self.read_bandwidth + self.write_bandwidth
+        self.total_throughput = self.read_throughput + self.write_throughput
         if self.read_latency == 0:
             self.avg_latency = self.write_latency
         elif self.write_latency == 0:
@@ -39,6 +39,8 @@ class FioBase:
         else:
             self.avg_latency = ((self.read_latency * self.read_iops) + (self.write_latency * self.write_iops)) / self.total_iops
         self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
+        self.read_percent = (self.read_iops / self.total_iops) * 100 if self.total_iops != 0 else 0
+
 
     def to_json(self) -> str:
         try: 
@@ -65,10 +67,10 @@ class FioBase:
         try: 
             json_result = json.loads(raw_stdout)
             self.read_iops = json_result['jobs'][0]['read']['iops']
-            self.read_bandwidth = json_result['jobs'][0]['read']['bw']
+            self.read_throughput = json_result['jobs'][0]['read']['bw']
             self.read_latency = json_result['jobs'][0]['read']['lat']['mean']
             self.write_iops = json_result['jobs'][0]['write']['iops']
-            self.write_bandwidth = json_result['jobs'][0]['write']['bw']
+            self.write_throughput = json_result['jobs'][0]['write']['bw']
             self.write_latency = json_result['jobs'][0]['write']['lat']['mean']
             self.duration = json_result['jobs'][0]['elapsed']
             self.timestamp = json_result['time']
@@ -100,7 +102,6 @@ class FioBase:
 class FioOptimizer:
     def __init__(self,
                  runs: dict = None,
-                 best_run: FioBase = None,
                  config: dict = None, 
                  min: int = 1,
                  max: int = 256, 
@@ -108,7 +109,7 @@ class FioOptimizer:
 
         self.runs: dict = runs if runs else {}
         self.config: dict = config if config else {}
-        self.best_run: FioBase = best_run
+        self.best_run: FioBase = None
         self.optimal_queue_depth: int = None
         self.min: int = min
         self.max: int = max
@@ -117,7 +118,7 @@ class FioOptimizer:
 
         # store state file (csv maybe), read that state file in on load and just return data 
 
-    def find_optimal_iodepth(self) -> None:
+    def find_optimal_iodepth(self) -> FioBase:
         is_optimial: bool = False
         
         while not is_optimial: 
@@ -129,25 +130,25 @@ class FioOptimizer:
             if (self.max - self.min) <= 1:
                 self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
                 is_optimial: bool = True
-                logging.debug(f"Optimal IO Depth: {self.best_run.io_depth}\n" + \
-                              f"IOPS            : {self.best_run.total_iops}\n" + \
-                              f"Latency         : {self.best_run.avg_latency} µs\n" + \
-                              f"Throughput      : {self.best_run.total_bandwidth}  KiBps\n")
+                logging.info(f"Optimal IO Depth: {self.best_run.io_depth}")
+                logging.info(f"IOPS            : {self.best_run.total_iops}")
+                logging.info(f"Latency         : {self.best_run.avg_latency} µs")
+                logging.info(f"Throughput      : {self.best_run.total_throughput} KiBps")
             else:
                 # take a range of values spaced equally between minimum and maximum and test each one
                 next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
-                self.prepare_and_run_fio(next_iodepths)
-            
-            sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
-            self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
-            self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
+                self.prepare_and_run_fio(io_depths=next_iodepths)
+                sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
+                self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
+                self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
+        return self.best_run
 
-
-    def prepare_and_run_fio(self, io_depths: List[int]) -> None:
+    def prepare_and_run_fio(self, io_depths: List) -> None:
         # TODO Add config to INI if passing at cmdline doesn't work for multi host 2/21/2023  
+        logging.debug(f"Preparing to run FIO with IO Depths: {io_depths}")
         for io_depth in io_depths:
             if io_depth in self.tested_iodepths or io_depth <= 0:
-                # TODO add checking if io_depth is using the same blocksize and r/w ratio
+                logging.debug(f"Skipping IO Depth = {io_depth}")
                 continue
             logging.info(f"Running Test with IO Depth = {io_depth}")
             self.config['iodepth'] = io_depth
@@ -161,14 +162,13 @@ class FioOptimizer:
                 raise RuntimeError(f"Error code: {fio_run_process.returncode}\nError Message: {fio_run_process.stderr}")
             
             fio_run: FioBase = FioBase()
-            fio_run.io_depth = io_depth
-            # print("parsing output for IO Depth = {0}".format(io_depth))
-
             fio_run.parse_stdout(fio_run_process.stdout)
-
+            fio_run.io_depth = io_depth
+            fio_run.blocksize = self.config['bs']
+            # store current iteration in the "runs" dictionary
             self.runs[io_depth] = fio_run
             self.tested_iodepths.append(io_depth)
-            return 
+            logging.debug(f"Test with IO Depth = {io_depth} completed")
 
     def to_DataFrame(self) -> object:
         return pd.DataFrame([x.__dict__ for x in self.runs.values()])

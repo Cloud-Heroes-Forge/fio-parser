@@ -33,10 +33,10 @@ class FioRunner:
             json_result = json.loads(raw_stdout)
             fiobase = FioBase()
             fiobase.read_iops = json_result['jobs'][0]['read']['iops']
-            fiobase.read_bandwidth = json_result['jobs'][0]['read']['bw']
+            fiobase.read_throughput = json_result['jobs'][0]['read']['bw']
             fiobase.read_latency = json_result['jobs'][0]['read']['lat']['mean']
             fiobase.write_iops = json_result['jobs'][0]['write']['iops']
-            fiobase.write_bandwidth = json_result['jobs'][0]['write']['bw']
+            fiobase.write_throughput = json_result['jobs'][0]['write']['bw']
             fiobase.write_latency = json_result['jobs'][0]['write']['lat']['mean']
             fiobase.duration = json_result['jobs'][0]['elapsed']
             fiobase.timestamp = json_result['time']
