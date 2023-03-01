@@ -29,6 +29,7 @@ def arg_parser_setup() -> Namespace:
     parser.add_argument('-s', '--slices', type=int, default=5,
                         help='Number of slices to divide the IO Depth range into, defaults to 5')
     parser.add_argument('-rw', '--readwrite', nargs='+', default=["50"])
+    #parser.add_argument('-mode', '--mode', default="max_io_rate", help="Mode to run fio in. Defaults to rw")
     parser.add_argument('-n', '--name', default="job1", help="Name of the fio job(s). Defaults to job1")
     args = parser.parse_args()
     logging.debug(f"Arguments: {args}")

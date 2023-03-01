@@ -23,8 +23,8 @@ class FioBase:
         self.blocksize: str = None
         self.total_iops: float = 0
         self.io_depth: int = 0
-        self.jobs: int = 0
-        self.ERROR_CODE = None
+        # self.jobs: int = 0
+        # self.ERROR_CODE = None
         self.iops_latency_ratio: float = 0
         self.avg_latency: float = 0
         self.summarize()
@@ -170,14 +170,17 @@ class FioOptimizer:
             self.tested_iodepths.append(io_depth)
             logging.debug(f"Test with IO Depth = {io_depth} completed")
 
-    def to_DataFrame(self) -> object:
-        return pd.DataFrame([x.__dict__ for x in self.runs.values()])
+    def to_DataFrame(self) -> pd.DataFrame:
+        df = pd.DataFrame([x.__dict__ for x in self.runs.values()])
+        df.set_index('io_depth', inplace=True)
+        return df
+    
 
-    def to_csv(self) -> object:
+    def to_csv(self) -> str:
         # call the to_DataFrame function and return a csv
         return self.to_DataFrame().to_csv()
 
-    def to_json(self) -> object:
+    def to_json(self) -> str:
         # call the to_DataFrame function and return a json
         return self.to_DataFrame().to_json()
     
