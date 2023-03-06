@@ -18,6 +18,8 @@ def arg_parser_setup() -> Namespace:
     # TODO take in a list of tuples (blocksize, randrw/rw)
     parser.add_argument('-bs', '--blocksize', nargs='+', default=["8K"], 
                         help='Block Size to test. Defaults to 8K, for multiple block sizes use -bs 8K 16K 32K')
+    parser.add_argument('-rw', '--readwrite', nargs='+', default=["50"])
+    # region advanced options
     parser.add_argument('-min', '--minimum', type=int, default=1, 
                         action='store', help='Minimum Queue Depth to test. Defaults to 1')
     parser.add_argument('-max', '--maximum', type=int, default=256, 
@@ -28,13 +30,20 @@ def arg_parser_setup() -> Namespace:
                         action='append', help='list of emails to send notifications, defaults is none')
     parser.add_argument('-s', '--slices', type=int, default=5,
                         help='Number of slices to divide the IO Depth range into, defaults to 5')
-    parser.add_argument('-rw', '--readwrite', nargs='+', default=["50"])
+    # endregion advanced options
     #parser.add_argument('-mode', '--mode', default="max_io_rate", help="Mode to run fio in. Defaults to rw")
     parser.add_argument('-n', '--name', default="job1", help="Name of the fio job(s). Defaults to job1")
     args = parser.parse_args()
     logging.debug(f"Arguments: {args}")
     return args
 
+def save_output(fio_optimizer: FioOptimizer, blocksize: str, rwmix: str):
+    logging.info("Saving Output")
+    output_folder: str = os.path.join(os.getcwd(), f'output/{blocksize}/{rwmix}')
+    fio_optimizer_df = fio_optimizer.to_DataFrame()
+    fio_optimizer_df.to_csv(f'{output_folder}/fio.csv')
+    with open(f'{output_folder}/raw.json', 'w') as f:
+        json.dump(fio_optimizer.to_dict(), f)
 
 def main():
     logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -71,6 +80,9 @@ def main():
         # TODO: add blocksize, rwmix, and to the pandas object
         fio_optimizer_df.to_csv(f'fio_{blocksize}.csv')
         fio_optimizer_df.to_json(f'fio_{blocksize}.json')
+
+        
+
         
 
 if __name__ == '__main__':
