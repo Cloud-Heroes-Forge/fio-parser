@@ -38,6 +38,7 @@ class FioBase:
             self.avg_latency = self.read_latency
         else:
             self.avg_latency = ((self.read_latency * self.read_iops) + (self.write_latency * self.write_iops)) / self.total_iops
+        # this is the optimizer metric
         self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
         self.read_percent = (self.read_iops / self.total_iops) * 100 if self.total_iops != 0 else 0
 
@@ -115,6 +116,7 @@ class FioOptimizer:
         self.max: int = max
         self.slices: int = slices
         self.tested_iodepths: list[int] = []
+        self.runs_raw: dict = {}
 
         # store state file (csv maybe), read that state file in on load and just return data 
 
@@ -168,6 +170,7 @@ class FioOptimizer:
             # store current iteration in the "runs" dictionary
             self.runs[io_depth] = fio_run
             self.tested_iodepths.append(io_depth)
+            self.runs_raw[io_depth] = fio_run_process.stdout
             logging.debug(f"Test with IO Depth = {io_depth} completed")
 
     def to_DataFrame(self) -> pd.DataFrame:
@@ -196,3 +199,5 @@ def parse_fio_config(config_file: str) -> dict:
         logging.error("Config file does not have a [global] section")
         raise ValueError("Config file does not have a [global] section")
     return config_parser.items('global')
+
+
