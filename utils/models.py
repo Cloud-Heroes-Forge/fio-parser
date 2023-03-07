@@ -146,7 +146,6 @@ class FioOptimizer:
         return self.best_run
 
     def prepare_and_run_fio(self, io_depths: List) -> None:
-        # TODO Add config to INI if passing at cmdline doesn't work for multi host 2/21/2023  
         logging.debug(f"Preparing to run FIO with IO Depths: {io_depths}")
         for io_depth in io_depths:
             if io_depth in self.tested_iodepths or io_depth <= 0:
@@ -170,7 +169,7 @@ class FioOptimizer:
             # store current iteration in the "runs" dictionary
             self.runs[io_depth] = fio_run
             self.tested_iodepths.append(io_depth)
-            self.runs_raw[io_depth] = fio_run_process.stdout
+            self.runs_raw[io_depth] = fio_run_process.stdout.decode('utf-8')
             logging.debug(f"Test with IO Depth = {io_depth} completed")
 
     def to_DataFrame(self) -> pd.DataFrame:
@@ -199,5 +198,3 @@ def parse_fio_config(config_file: str) -> dict:
         logging.error("Config file does not have a [global] section")
         raise ValueError("Config file does not have a [global] section")
     return config_parser.items('global')
-
-
