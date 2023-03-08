@@ -48,7 +48,6 @@ def save_single_output(fio_opt: FioOptimizer) -> None:
     """
     output_folder: str = os.path.join(os.getcwd(), 
                                       f'output/{fio_opt.config["bs"]}_{fio_opt.config["rw"]}/{fio_opt.config["rwmixread"]}')
-    logging.info(f'Saving Output for {output_folder}')
     try:
         if not os.path.exists(output_folder):
             os.makedirs(output_folder, exist_ok=True)
@@ -115,6 +114,7 @@ def main():
         save_single_output(fio_optimizer)
         results[values] = fio_optimizer
         logging.info(f"Finished {index+1} of {len(values_to_test)}:  {values[0]} {values[1]} {values[2]} ")
+        logging.info(f"\n##################################################\n")
 
 
         
