@@ -42,21 +42,29 @@ def arg_parser_setup() -> Namespace:
     logging.debug(f"Arguments: {args}")
     return args
 
-def save_single_output(fio_optimizer: FioOptimizer, blocksize: str, read_percent: str) -> None:
-    logging.info(f"Saving Output for {blocksize.replace(',','_')} {read_percent}")
-    output_folder: str = os.path.join(os.getcwd(), f'output/{blocksize.replace(",","_")}/{read_percent}')
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder, exist_ok=True)
-    fio_optimizer_df = fio_optimizer.to_DataFrame()
-    logging.info(f"Saving summary to {output_folder}/fio.csv")
-    fio_optimizer_df.to_csv(f'{output_folder}/fio.csv')
-    logging.info(f"Saving Raw Output to {output_folder}/raw.json")
-    with open(f'{output_folder}/raw.json', 'w') as f:
-        json.dump(fio_optimizer.runs_raw, f)
+def save_single_output(fio_opt: FioOptimizer) -> None:
+    """
+    
+    """
+    output_folder: str = os.path.join(os.getcwd(), 
+                                      f'output/{fio_opt.config["bs"]}_{fio_opt.config["rw"]}/{fio_opt.config["rwmixread"]}')
+    logging.info(f'Saving Output for {output_folder}')
+    try:
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder, exist_ok=True)
+        fio_optimizer_df = fio_opt.to_DataFrame()
+        logging.info(f"Saving summary to {output_folder}/fio.csv")
+        fio_optimizer_df.to_csv(f'{output_folder}/fio.csv')
+        logging.info(f"Saving Raw Output to {output_folder}/raw.json")
+        with open(f'{output_folder}/raw.json', 'w') as f:
+            json.dump(fio_opt.runs_raw, f)
+    except json.JSONDecodeError as jde:
+        logging.debug(f'failed to save results: {jde}')
 
 def save_summary_output(results: dict) -> None:
     logging.info("Saving Summary Output")
-    output_folder: str = os.path.join(os.getcwd(), f'output/summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+    output_folder: str = os.path.join(os.getcwd(), 
+                                      f'output/summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
     pgreports.generate_fio_report(results, output_folder)
 
 def main():
@@ -82,16 +90,18 @@ def main():
             rw = blocksize.split(',')[1] if len(blocksize.split(',')) > 1 else 'randrw'
             values_to_test.append((bs, rw, read_percentage))
     logging.info(f'Total Values to Test: {len(values_to_test)}')
+    logging.debug(f'Values to Test: {values_to_test}')
 
     for index, values in enumerate(values_to_test):
         logging.info(f"Starting {index+1} of {len(values_to_test)}:  {values[0]} {values[1]} {values[2]} ")
         fio_optimizer: FioOptimizer = FioOptimizer()
+        
         # read the config file and parse it into a dictionary with ConfigParser
         parsed_config: dict = parse_fio_config(args.config)
         logging.debug(f"Parsed Config: {parsed_config}")
         fio_optimizer.config = parsed_config
-        # set other attributes
         
+        # set other attributes
         fio_optimizer.config['bs'] = values[0]
         fio_optimizer.config['rw'] = values[1]
         fio_optimizer.config['rwmixread'] = values[2]
@@ -99,11 +109,10 @@ def main():
         fio_optimizer.max = args.maximum if args.maximum > 0 else 65536
         fio_optimizer.slices = args.slices if args.slices > 0 else 5
 
-
         logging.debug(f"Optimizer Config: {fio_optimizer.config}")
         fio_optimizer.find_optimal_iodepth()
 
-        save_single_output(fio_optimizer, blocksize, read_percentage)
+        save_single_output(fio_optimizer)
         results[values] = fio_optimizer
         logging.info(f"Finished {index+1} of {len(values_to_test)}:  {values[0]} {values[1]} {values[2]} ")
 
