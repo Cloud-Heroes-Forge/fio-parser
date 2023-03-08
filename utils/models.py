@@ -133,7 +133,9 @@ class FioOptimizer:
             # Check if min and max are 1 away from each other, 
             # if so determine which of the two are better and that is the optimal io depth        
             if (self.max - self.min) <= 1:
-                self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
+                sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)[0]
+                self.best_run = sorted_runs[1]
+                # self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
                 is_optimial: bool = True
                 logging.info(f"Optimal IO Depth: {self.best_run.io_depth}")
                 logging.info(f"IOPS            : {self.best_run.total_iops}")
