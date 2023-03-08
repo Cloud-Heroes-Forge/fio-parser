@@ -8,6 +8,9 @@ import configparser
 from os import path
 
 class FioBase:
+    """
+    
+    """
     def __init__(self):
         self.read_throughput: float = 0
         self.read_latency: float = 0
@@ -39,7 +42,7 @@ class FioBase:
         else:
             self.avg_latency = ((self.read_latency * self.read_iops) + (self.write_latency * self.write_iops)) / self.total_iops
         # this is the optimizer metric
-        self.iops_latency_ratio = self.total_iops / self.avg_latency if self.avg_latency != 0 else 0
+        self.iops_latency_ratio = self.total_iops / (self.avg_latency**2) if self.avg_latency != 0 else 0
         self.read_percent = (self.read_iops / self.total_iops) * 100 if self.total_iops != 0 else 0
 
 
