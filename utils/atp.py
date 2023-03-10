@@ -83,5 +83,5 @@ class ATP():
             the latency curve and the Overall Response Time (ORT) curve
         """
         intersection_point = self.find_points_of_intersection()
-        closest_queue_depth = self.throughput[self.throughput <= intersection_point['x']].max()
+        closest_queue_depth = self.data[self.data.throughput <= intersection_point['x']].max()
         return closest_queue_depth['io_depth']
