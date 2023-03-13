@@ -4,6 +4,14 @@ from numpy.typing import ArrayLike
 from numpy.polynomial.polynomial import Polynomial
 import scipy.integrate as spi
 import pandas
+
+def calculate_latency_curve(throughput, latency) -> Polynomial:
+    """
+    Generates a polynomial curve that fits the latency values for a given throughput range
+    """
+    latency_curve: Callable = Polynomial.fit(x=throughput, y=latency, deg=2, w=1/throughput)
+    return latency_curve
+
 class ATP():
     """
     Reference: https://dl.acm.org/doi/abs/10.1145/2825236.2825248
@@ -20,12 +28,20 @@ class ATP():
         self.throughput: np.ArrayLike = data.total_throughput
         self.latency: np.ArrayLike = data.avg_latency
         self.alpha: int = alpha
-        self.latency_curve: Polynomial = self.calculate_latency_curve()
+        self.latency_curve: Polynomial = None
+        self.throughput_x_range: np.ndarray = None
+        self.latency_y_range: np.ndarray = None
+        self.ort_curve_y_range = None
+        self.atp = None
+        self.points_of_intersection = None
+
+    def do_the_math(self) -> None:
+        self.latency_curve: Polynomial = calculate_latency_curve(self.throughput, self.latency)
         self.throughput_x_range: np.ndarray = np.linspace(self.throughput.min(), self.throughput.max(), 1000)
         self.latency_y_range: np.ndarray = self.__calculate_latency_points()
-        self.ort_curve_x_range = np.array([self.__calculate_ort(x=x, w=self.calculate_latency_curve) for x in self.throughput_x_range])
-        # self.atp = self.ort.max()
-        # self.atp: float = self.__calculate_atp()
+        self.ort_curve_y_range = np.array([self.__calculate_ort(x=x, w=self.latency_curve) for x in self.throughput_x_range])
+        self.atp = self.ort_curve_y_range.max()
+        self.points_of_intersection = self.find_points_of_intersection()
         # self.knee: float = self.__calculate_knee()
         # self.knee_throughput: float = self.throughput[self.knee]
         # self.knee_latency: float = self.latency[self.knee]
@@ -36,13 +52,7 @@ class ATP():
     # def get_atp(self, fio: FioBase) -> float:
     #     return fio.iops_latency_ratio
 
-    def calculate_latency_curve(self) -> Polynomial:
-        """
-        Generates a polynomial curve that fits the latency values for a given throughput range
-        """
-        latency_curve = Polynomial.fit(x=self.throughput, y=self.latency, deg=2, w=1/self.throughput)
-        return latency_curve
-    
+
     def __calculate_latency_points(self) -> Polynomial:
         """
         Computes the latency values for a given throughput range
@@ -66,31 +76,39 @@ class ATP():
         Returns:
         The value of the integral
         """
-        numerator, _ = spi.quad(self.latency_curve, 0, x)
+
+
+        def integrand(u):
+            return w(u) 
+        
+        numerator, _ = spi.quad(integrand, 0, x)
         return numerator / x
     
     def __calculate_atp(self) -> float:
+
         """
         Computes the Average Throughput Point (ATP) for a given set of data
         """
+
         atp = self.__calculate_ort(self.throughput.max(), self.latency_curve)
         return atp
 
     def find_points_of_intersection(self) -> dict:
+        
         """
         Finds the point of intersection between the latency curve and the Overall Response Time (ORT) curve
         """
         
-        ort_y_vals = np.array([self.ORT(x=x, w=self.latency_curve) for x in self.throughput_x_range])
+        ort_y_vals = np.array([self.__calculate_ort(x=x, w=self.latency_curve) for x in self.throughput_x_range])
         # Interpolate response_time_vals onto the x-values of latency_mathed
         response_time_interp = np.interp(self.throughput_x_range, self.throughput_x_range, ort_y_vals)
 
         # Find the indices of the points of intersection
-        intersection_indices = np.where(np.isclose(self.latency_y_vals, ort_y_vals*2, rtol=0.01))
+        intersection_indices = np.where(np.isclose(self.latency_y_range, ort_y_vals*2, rtol=0.01))
 
         # Extract the x and y values of the intersection points
         intersection_x_vals = np.average(self.throughput_x_range[intersection_indices])
-        intersection_y_vals = np.average(self.latency_y_vals[intersection_indices])
+        intersection_y_vals = np.average(self.latency_y_range[intersection_indices])
 
         return {'x': intersection_x_vals, 'y': intersection_y_vals}
     
