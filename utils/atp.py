@@ -104,13 +104,17 @@ class ATP():
         response_time_interp = np.interp(self.throughput_x_range, self.throughput_x_range, ort_y_vals)
 
         # Find the indices of the points of intersection
-        intersection_indices = np.where(np.isclose(self.latency_y_range, ort_y_vals*2, rtol=0.01))
+        intersection_indices = None 
+        tolerance = 0.01
+        while intersection_indices is None:
+            intersection_indices = np.where(np.isclose(self.latency_y_range, ort_y_vals*2, rtol=tolerance))
+            tolerance *= 2  
 
         # Extract the x and y values of the intersection points
         intersection_x_vals = np.average(self.throughput_x_range[intersection_indices])
         intersection_y_vals = np.average(self.latency_y_range[intersection_indices])
 
-        return {'x': intersection_x_vals, 'y': intersection_y_vals}
+        return {'x': intersection_x_vals, 'y': intersection_y_vals, 'tolerance': tolerance}
     
     def find_closest_queue_depth(self):
         """
@@ -118,8 +122,15 @@ class ATP():
             the latency curve and the Overall Response Time (ORT) curve
         """
         intersection_point = self.find_points_of_intersection()
-        closest_queue_depth = self.data[self.data.throughput <= intersection_point['x']].max()
-        return closest_queue_depth['io_depth']
+        closest_queue_depth = self.data[self.data.total_throughput <= intersection_point['x']].max()
+        two = 1+1
+        return closest_queue_depth.iodepth
 
     def __str__(self) -> str:
         return self.__dict__.__str__()
+    
+    def get_target_iodepth(self) -> int:
+        """
+        Returns the optimal iodepth for a given set of data
+        """
+        return self.find_closest_queue_depth()

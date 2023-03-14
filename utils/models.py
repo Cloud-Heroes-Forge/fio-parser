@@ -5,6 +5,7 @@ from typing import Any, List
 import pandas as pd
 import logging
 import configparser
+from utils.atp import ATP 
 from os import path
 
 class FioBase:
@@ -120,39 +121,63 @@ class FioOptimizer:
         self.slices: int = slices
         self.tested_iodepths: list[int] = []
         self.runs_raw: dict = {}
+        self.atp = None
 
         # store state file (csv maybe), read that state file in on load and just return data 
 
     def find_optimal_iodepth(self) -> FioBase:
+        queue_depths = [2**x for x in range(1,13)]
+
         is_optimial: bool = False
         
         while not is_optimial: 
             # Test minimum io_depth and maximum io_depth
-            logging.info(f"min: {self.min}\t max: {self.max}")
-            self.prepare_and_run_fio(io_depths=[self.min, self.max])    
+            # logging.info(f"min: {self.min}\t max: {self.max}")
+            # self.prepare_and_run_fio(queue_depths=[self.min, self.max])    
             # Check if min and max are 1 away from each other, 
-            # if so determine which of the two are better and that is the optimal io depth        
-            if (self.max - self.min) <= 1:
-                sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)[0]
-                self.best_run = sorted_runs[1]
-                # self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
-                is_optimial: bool = True
+            # if so determine which of the two are better and that is the optimal io depth
+            self.prepare_and_run_fio(queue_depths=queue_depths)
+            throughput = [self.runs[x].total_throughput for x in self.runs.keys()]
+            latency = [self.runs[x].avg_latency for x in self.runs.keys()]
+            iodepth = [x for x in self.runs.keys()]
+            current_data = pd.DataFrame({'iodepth': iodepth, 'total_throughput': throughput, 'avg_latency': latency})
+            self.atp = ATP(current_data) 
+            self.atp.do_the_math()
+            # what is the maximum io depth where the latency is less than the throughput (x) value (which is ATP)
+            target_iodepth = self.atp.find_closest_queue_depth()
+            
+            queue_depths = range(target_iodepth // 1.2, 
+                                 round(target_iodepth * 1.2), 
+                                 (round(target_iodepth * 1.2) - target_iodepth // 1.2) // 3)
+            
+            if all(queue_depth in self.tested_iodepths for queue_depth in queue_depths):
+                is_optimial = True
+                self.best_run = self.runs[target_iodepth]
                 logging.info(f"Optimal IO Depth: {self.best_run.io_depth}")
                 logging.info(f"IOPS            : {self.best_run.total_iops}")
                 logging.info(f"Latency         : {self.best_run.avg_latency} µs")
                 logging.info(f"Throughput      : {self.best_run.total_throughput} KiBps")
-            else:
-                # take a range of values spaced equally between minimum and maximum and test each one
-                next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
-                self.prepare_and_run_fio(io_depths=next_iodepths)
-                sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
-                self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
-                self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
+            # if (self.max - self.min) <= 1:
+            #     sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)[0]
+            #     self.best_run = sorted_runs[1]
+            #     # self.best_run = self.runs[self.max] if self.runs[self.max] > self.runs[self.min]else self.runs[self.min] 
+            #     is_optimial: bool = True
+            #     logging.info(f"Optimal IO Depth: {self.best_run.io_depth}")
+            #     logging.info(f"IOPS            : {self.best_run.total_iops}")
+            #     logging.info(f"Latency         : {self.best_run.avg_latency} µs")
+            #     logging.info(f"Throughput      : {self.best_run.total_throughput} KiBps")
+            # else:
+            #     # take a range of values spaced equally between minimum and maximum and test each one
+            #     next_iodepths = range(self.min, self.max, max(abs((self.max - self.min)//self.slices),1))
+            #     self.prepare_and_run_fio(queue_depths=next_iodepths)
+            #     sorted_runs = sorted(self.runs.items(), key=lambda item: item[1], reverse=True)
+            #     self.max = self.max if sorted_runs[0][0] == self.max else self.max - max(1, ((self.max + (sorted_runs[0][0])) // self.slices))
+            #     self.min = self.min if sorted_runs[0][0] == self.min else self.min + max(1, ((self.min + (sorted_runs[0][0])) // self.slices))
         return self.best_run
 
-    def prepare_and_run_fio(self, io_depths: List) -> None:
-        logging.debug(f"Preparing to run FIO with IO Depths: {io_depths}")
-        for io_depth in io_depths:
+    def prepare_and_run_fio(self, queue_depths: List) -> None:
+        logging.debug(f"Preparing to run FIO with IO Depths: {queue_depths}")
+        for io_depth in queue_depths:
             if io_depth in self.tested_iodepths or io_depth <= 0:
                 logging.debug(f"Skipping IO Depth = {io_depth}")
                 continue
