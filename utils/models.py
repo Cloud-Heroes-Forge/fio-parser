@@ -126,7 +126,7 @@ class FioOptimizer:
         # store state file (csv maybe), read that state file in on load and just return data 
 
     def find_optimal_iodepth(self) -> FioBase:
-        queue_depths = [2**x for x in range(1,13)]
+        queue_depths = [2**x for x in range(0,13)]
 
         is_optimial: bool = False
         
@@ -144,8 +144,8 @@ class FioOptimizer:
             self.atp = ATP(current_data) 
             self.atp.do_the_math()
             # what is the maximum io depth where the latency is less than the throughput (x) value (which is ATP)
-            target_iodepth = self.atp.find_closest_queue_depth()
-            intersection_point = self.atp.points_of_intersection
+            target_iodepth = current_data[current_data['avg_latency'] <= self.atp.points_of_intersection['y']]
+            logging.info(f"Target IO Depth: {target_iodepth}")
             queue_depths = range(max(round(target_iodepth * 1.2), 1), 
                                  min(round(target_iodepth * 1.2), 65536), 
                                  max(round(target_iodepth * 1.2), 1) - min(round(target_iodepth * 1.2), 65536) // 5)
@@ -181,7 +181,7 @@ class FioOptimizer:
             if io_depth in self.tested_iodepths or io_depth <= 0:
                 logging.debug(f"Skipping IO Depth = {io_depth}")
                 continue
-            logging.info(f"Running Test with IO Depth = {io_depth}")
+            logging.info(f"Start Test IO Depth = {io_depth}")
             self.config['iodepth'] = io_depth
             self.config['output-format'] = 'json'
             
@@ -198,9 +198,10 @@ class FioOptimizer:
             fio_run.blocksize = self.config['bs']
             # store current iteration in the "runs" dictionary
             self.runs[io_depth] = fio_run
-            self.tested_iodepths.append(io_depth)
             self.runs_raw[io_depth] = fio_run_process.stdout.decode('utf-8')
-            logging.debug(f"Test with IO Depth = {io_depth} completed")
+
+            self.tested_iodepths.append(io_depth)
+            logging.debug(f"End Test IO Depth: {io_depth}, {fio_run.total_iops} IOPS, {fio_run.avg_latency} µs, {fio_run.total_throughput} KiBps")
 
     def to_DataFrame(self) -> pd.DataFrame:
         df = pd.DataFrame([x.__dict__ for x in self.runs.values()])
