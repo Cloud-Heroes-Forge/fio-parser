@@ -145,10 +145,10 @@ class FioOptimizer:
             self.atp.do_the_math()
             # what is the maximum io depth where the latency is less than the throughput (x) value (which is ATP)
             target_iodepth = self.atp.find_closest_queue_depth()
-            
-            queue_depths = range(target_iodepth // 1.2, 
-                                 round(target_iodepth * 1.2), 
-                                 (round(target_iodepth * 1.2) - target_iodepth // 1.2) // 3)
+            intersection_point = self.atp.points_of_intersection
+            queue_depths = range(max(round(target_iodepth * 1.2), 1), 
+                                 min(round(target_iodepth * 1.2), 65536), 
+                                 max(round(target_iodepth * 1.2), 1) - min(round(target_iodepth * 1.2), 65536) // 5)
             
             if all(queue_depth in self.tested_iodepths for queue_depth in queue_depths):
                 is_optimial = True
