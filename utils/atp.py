@@ -3,7 +3,7 @@ from typing import Callable, Dict, List, Tuple
 from numpy.typing import ArrayLike
 from numpy.polynomial.polynomial import Polynomial
 import scipy.integrate as spi
-import pandas
+import pandas as pd
 import logging
 
 def calculate_latency_curve(throughput, latency) -> Polynomial:
@@ -20,18 +20,19 @@ class ATP():
         
     """
     def __init__(self, 
-                 data: pandas.DataFrame,
+                 data: pd.DataFrame,
                  alpha: int = 1, 
                  do_the_math: bool = False) -> None:
         
-        self.data: pandas.DataFrame = data
+        self.data: pd.DataFrame = data
         self.data.sort_index(inplace=True)
-        # self.data['through_normalized']: np.ArrayLike = self.data['total_throughput'] / self.data['total_throughput'].max()
+        self.data['through_normalized']: np.ArrayLike = self.data['total_throughput'] / self.data['total_throughput'].max()
         self.alpha: int = alpha
         self.latency_curve: Polynomial = calculate_latency_curve(self.data['total_throughput'], self.data['avg_latency'])
         self.data['ORT']: np.ArrayLike = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.data['total_throughput']])
         self.data['ATP']: np.ArrayLike = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.data['total_throughput']])
-        self.j: int = self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0].iloc[0]
+        # Applying the half-latency rule, we can find j, the smallest index for which 2r(x) − w(x) ( 2*ORT - latency ) is negative
+        self.j: pd.Series = self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0].sort_values(by='ATP', ascending=True).iloc[0]
         # x_i = throughput at point x   
         # w_i = latency at point x
         # r_i = ort at point x
@@ -56,8 +57,8 @@ class ATP():
         self.throughput_x_range: np.ndarray = None
         self.latency_y_range: np.ndarray = None
         self.ort_curve_y_range: np.ndarray = None
-        self.atp: np.int64 = None
-        self.points_of_intersection: Dict[str, any] = None
+        # self.atp: np.int64 = None
+        # self.points_of_intersection: Dict[str, any] = None
         if do_the_math: 
             self.do_the_math()
 
@@ -68,7 +69,7 @@ class ATP():
         self.ort_curve_y_range = np.array([self.__calculate_ort(x=x, w=self.latency_curve) for x in self.throughput_x_range])
 
         self.atp = self.ort_curve_y_range.max()
-        self.points_of_intersection = self.find_points_of_intersection()
+        # self.points_of_intersection = self.find_points_of_intersection()
         # self.knee: float = self.__calculate_knee()
         # self.knee_throughput: float = self.throughput[self.knee]
         # self.knee_latency: float = self.latency[self.knee]
@@ -121,44 +122,29 @@ class ATP():
     #     atp = self.__calculate_ort(self.throughput.max(), self.latency_curve)
     #     return atp
 
-    def find_points_of_intersection(self) -> dict:
+    # def find_points_of_intersection(self) -> dict:
         
-        """
-        Finds the point of intersection between the latency curve and the Overall Response Time (ORT) curve
-        """
+    #     """
+    #     Finds the point of intersection between the latency curve and the Overall Response Time (ORT) curve
+    #     """
 
-        # Interpolate ort_y_vals onto the x-values of latency_mathed
-        response_time_interp = np.interp(self.throughput_x_range, self.throughput_x_range, self.ort_curve_y_range)
+    #     # Interpolate ort_y_vals onto the x-values of latency_mathed
+    #     response_time_interp = np.interp(self.throughput_x_range, self.throughput_x_range, self.ort_curve_y_range)
 
-        # Find the indices of the points of intersection
-        tolerance = 0.01
-        intersection_indices = np.where(np.isclose(self.latency_y_range, response_time_interp*2, rtol=tolerance))
-        while not intersection_indices[0].size:
-            tolerance = tolerance * 2
-            logging.debug(f"increased tolerance: {tolerance}")
-            logging.debug(f"intersection_indices: {intersection_indices}")
-            intersection_indices = np.where(np.isclose(self.latency_y_range, self.ort_curve_y_range*2, rtol=tolerance))
+    #     # Find the indices of the points of intersection
+    #     tolerance = 0.01
+    #     intersection_indices = np.where(np.isclose(self.latency_y_range, response_time_interp*2, rtol=tolerance))
+    #     while not intersection_indices[0].size:
+    #         tolerance = tolerance * 2
+    #         logging.debug(f"increased tolerance: {tolerance}")
+    #         logging.debug(f"intersection_indices: {intersection_indices}")
+    #         intersection_indices = np.where(np.isclose(self.latency_y_range, self.ort_curve_y_range*2, rtol=tolerance))
 
-        # Extract the x and y values of the intersection points
-        intersection_x_vals = np.average(self.throughput_x_range[intersection_indices])
-        intersection_y_vals = np.average(self.latency_y_range[intersection_indices])
+    #     # Extract the x and y values of the intersection points
+    #     intersection_x_vals = np.average(self.throughput_x_range[intersection_indices])
+    #     intersection_y_vals = np.average(self.latency_y_range[intersection_indices])
 
-        return {'x': intersection_x_vals, 'y': intersection_y_vals, 'tolerance': tolerance}
-    
-    def find_closest_queue_depth(self) -> int:
-        """
-        Finds the queue depth that is closest to the point of intersection between 
-            the latency curve and the Overall Response Time (ORT) curve
-        """
-        intersection_point = self.find_points_of_intersection()
-        closest_queue_depth = self.data[self.data['avg_latency'] <= intersection_point['y']].max()
-        return int(closest_queue_depth.iodepth)
+    #     return {'x': intersection_x_vals, 'y': intersection_y_vals, 'tolerance': tolerance}
 
     def __str__(self) -> str:
         return self.__dict__.__str__()
-    
-    def get_target_iodepth(self) -> int:
-        """
-        Returns the optimal iodepth for a given set of data
-        """
-        return self.find_closest_queue_depth()

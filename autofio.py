@@ -37,7 +37,7 @@ def arg_parser_setup() -> Namespace:
                         help='Number of slices to divide the IO Depth range into, defaults to 5')
     # endregion advanced options
     #parser.add_argument('-mode', '--mode', default="max_io_rate", help="Mode to run fio in. Defaults to rw")
-    parser.add_argument('-n', '--name', default="job1", help="Name of the fio job(s). Defaults to job1")
+    parser.add_argument('-n', '--name', default="fio-test", help="Name of the fio job(s). Defaults to job1")
     args = parser.parse_args()
     logging.debug(f"Arguments: {args}")
     return args
@@ -52,7 +52,7 @@ def save_single_output(fio_opt: FioOptimizer) -> None:
         if not os.path.exists(output_folder):
             os.makedirs(output_folder, exist_ok=True)
         fio_optimizer_df = fio_opt.to_DataFrame()
-        logging.info(f"Saving summary to {output_folder}/fio.csv")
+        logging.info(f"Saving csv to {output_folder}/fio.csv")
         fio_optimizer_df.to_csv(f'{output_folder}/fio.csv')
         logging.info(f"Saving Raw Output to {output_folder}/raw.json")
         with open(f'{output_folder}/raw.json', 'w') as f:
@@ -114,7 +114,7 @@ def main():
         save_single_output(fio_optimizer)
         results[values] = fio_optimizer
         logging.info(f"Finished {index+1} of {len(values_to_test)}:  {values[0]} {values[1]} {values[2]} ")
-        logging.info(f"\n##################################################\n")
+        logging.info(f"##################################################")
 
 
         
