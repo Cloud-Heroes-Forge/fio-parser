@@ -46,7 +46,44 @@ def generate_total_throughput_chart(data: pd.DataFrame) -> plt.Figure:
     plt.tight_layout()
     return fig
 
-def generate_fio_report(fio_results_df: pd.DataFrame, report_file_path: str) -> None:
+def generate_rwmix_stacked_graphs(data: pd.DataFrame) -> plt.Figure:
+    # Group the dataframe by 'bs'
+    groups = data.groupby('bs')
+    # Initialize a dictionary to store the graphs
+    graphs = {}
+    # Iterate over the groups
+    for bs, group in groups:
+        # Group the group by 'rwmixread'
+        subgroups = group.groupby('rwmixread')
+        
+        # Initialize lists to store the x-axis labels and the data for each bar
+        labels = []
+        read_data = []
+        write_data = []
+        
+        # Iterate over the subgroups
+        for rwmixread, subgroup in subgroups:
+            # Add the rwmixread value to the x-axis labels
+            labels.append(rwmixread)
+            
+            # Add the read and write throughput values to their respective lists
+            read_data.append(subgroup['read_throughput'])
+            write_data.append(subgroup['write_throughput'])
+            
+        # Create a stacked bar graph
+        fig, ax = plt.subplots()
+        ax.bar(labels, read_data, label='Read')
+        ax.bar(labels, write_data, bottom=read_data, label='Write')
+        ax.set_title(f'BS={bs} Throughput Summary')
+        ax.set_xlabel('Read %')
+        ax.set_ylabel('Throughput (MB/s)')
+        ax.legend()
+        
+        # Add the graph to the dictionary
+        graphs[bs] = fig
+
+
+def generate_fio_report(data: pd.DataFrame, report_file_path: str) -> None:
     """Using the template.html file, generates an html report for the fio results.
         * overall summary of all of the `blocksize` parameters together
         * one page with 2 charts showing:
@@ -70,8 +107,8 @@ def generate_fio_report(fio_results_df: pd.DataFrame, report_file_path: str) -> 
     template = template_env.get_template("template.html")
 
     # build Summaries and Graphs
-    overall_summary = generate_blocksize_summary(fio_results_df)
-    generate_total_throughput_chart(fio_results_df).savefig('images/total_throughput.png')
+    
+    generate_total_throughput_chart(data).savefig('images/total_throughput.png')
 
 
 

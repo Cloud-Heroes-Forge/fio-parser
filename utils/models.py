@@ -16,21 +16,27 @@ class FioBase:
         self.read_throughput: float = 0
         self.read_latency: float = 0
         self.read_iops: float = 0
+
         self.write_throughput: float = 0
         self.write_latency: float = 0
         self.write_iops: float = 0
+
         self.read_percent: float = 0
+
         self.total_throughput: float = 0
+        self.total_iops: float = 0
+
+        self.avg_latency: float = 0
         self.timestamp: datetime = None
         self.duration: float = 0
+
         self.blocksize: str = None
-        self.total_iops: float = 0
         self.io_depth: int = 0
-        self.raw_stdout: str = None
+        # self.raw_stdout: str = None
         # self.ERROR_CODE = None
+
         self.atp: float = 0
         self.ort: float = 0
-        self.avg_latency: float = 0
         self.summarize()
 
     def summarize(self) -> None:
@@ -42,14 +48,19 @@ class FioBase:
             self.avg_latency = self.read_latency
         else:
             self.avg_latency = ((self.read_latency * self.read_iops) + (self.write_latency * self.write_iops)) / self.total_iops
-        self.read_percent = (self.read_iops / self.total_iops) * 100 if self.total_iops != 0 else 0
+        self.read_percent = round((self.read_iops / self.total_iops) * 100 if self.total_iops != 0 else 0)
 
-
+    def to_dict(self) -> dict:
+        return self.__dict__
+    
     def to_json(self) -> str:
         try: 
             return json.dumps(self.__dict__)
         except json.JSONDecodeError as e:
             raise Exception(f"Error converting fio output to JSON: {e.msg}")
+
+    def to_dataframe(self) -> pd.DataFrame:
+        return pd.DataFrame(self.__dict__)
 
     def __str__(self) -> str:
         return self.to_json()
@@ -58,7 +69,7 @@ class FioBase:
         # logging.debug(f"raw_stdout: {raw_stdout}")
         try: 
             json_result = json.loads(raw_stdout)
-            self.raw_stdout = raw_stdout
+            # self.raw_stdout = raw_stdout
 
             self.read_iops = json_result['jobs'][0]['read']['iops']
             self.write_iops = json_result['jobs'][0]['write']['iops']
@@ -114,12 +125,12 @@ class FioOptimizer:
         self.slices: int = slices
         self.tested_iodepths: list[int] = []
         self.runs_raw: dict = {}
-        self.atp = None
+        self.atp: ATP = None
 
         # store state file (csv maybe), read that state file in on load and just return data 
 
     def find_optimal_iodepth(self) -> FioBase:
-        queue_depths = [2**x for x in range(0,13)]
+        queue_depths = [2**x for x in range(0,6)]
 
         is_optimial: bool = False
         current_data: pd.DataFrame = None
@@ -138,7 +149,7 @@ class FioOptimizer:
                                          'avg_latency': latency})
             self.atp = ATP(current_data) 
             # what is the maximum io depth where the latency is less than the throughput (x) value (which is ATP)
-            optimal_iodepth = self.atp.j.name
+            optimal_iodepth = max(self.atp.j.name, 1)
             logging.info(f"Best IO Depth: {optimal_iodepth}")
             # build a new list of queue depths to test
             queue_depths = [x for x in range(optimal_iodepth - 2, optimal_iodepth + 3) if x > 0]
@@ -157,6 +168,7 @@ class FioOptimizer:
                     self.__reset()
                 else:
                     is_optimial = True
+                    self.optimal_queue_depth = optimal_iodepth
                     self.best_run = self.runs[optimal_iodepth]
                     logging.info(f"Optimal IO Depth: {self.best_run.io_depth}")
                     logging.info(f"IOPS            : {self.best_run.total_iops:.03f} \t(std dev: {retest_df_stddev['total_iops']:.03f})")

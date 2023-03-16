@@ -23,16 +23,22 @@ class ATP():
                  data: pd.DataFrame,
                  alpha: int = 1, 
                  do_the_math: bool = False) -> None:
-        
-        self.data: pd.DataFrame = data
+        self.data: pd.DataFrame = data.set_index('iodepth')
         self.data.sort_index(inplace=True)
         self.data['through_normalized']: np.ArrayLike = self.data['total_throughput'] / self.data['total_throughput'].max()
         self.alpha: int = alpha
         self.latency_curve: Polynomial = calculate_latency_curve(self.data['total_throughput'], self.data['avg_latency'])
+        self.latency_mathed = self.__calculate_latency_points()
         self.data['ORT']: np.ArrayLike = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.data['total_throughput']])
+        # ATP is (latency * alpha) / ORT
         self.data['ATP']: np.ArrayLike = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.data['total_throughput']])
         # Applying the half-latency rule, we can find j, the smallest index for which 2r(x) − w(x) ( 2*ORT - latency ) is negative
-        self.j: pd.Series = self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0].sort_values(by='ATP', ascending=True).iloc[0]
+        try: 
+            self.j: pd.Series = self.data[2 * self.data['ORT'] - self.latency_curve(self.data['total_throughput']) < 0].sort_values(by='ATP', ascending=True).iloc[0]
+        except IndexError:
+            logging.debug(f"IndexError: {self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0]}")
+            self.j: pd.Series = self.data.sort_values(by='ATP', ascending=True).iloc[0]
+        
         # x_i = throughput at point x   
         # w_i = latency at point x
         # r_i = ort at point x

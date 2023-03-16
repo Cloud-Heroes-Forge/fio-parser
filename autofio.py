@@ -3,16 +3,16 @@
 
 import os
 import sys
-import time
 import json
 import pandas as pd
+from typing import List, Dict
 from utils.models import FioBase, FioOptimizer
 from utils.parsers import parse_fio_config
 from argparse import ArgumentParser, Namespace
 from reporting import pgreports
 from datetime import datetime
-
 import logging
+
 def arg_parser_setup() -> Namespace:
     logging.info("Parsing Arguments")
     parser = ArgumentParser(description="Optimizer for fio")
@@ -60,11 +60,28 @@ def save_single_output(fio_opt: FioOptimizer) -> None:
     except json.JSONDecodeError as jde:
         logging.debug(f'failed to save results: {jde}')
 
-def save_summary_output(results: dict) -> None:
+def save_summary_output(results: Dict[str, FioOptimizer]) -> None:
     logging.info("Saving Summary Output")
     output_folder: str = os.path.join(os.getcwd(), 
                                       f'output/summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
-    pgreports.generate_fio_report(results, output_folder)
+    combined_results: pd.DataFrame = pd.DataFrame()
+    best_runs: Dict[str, FioBase] = {}
+    for key, value in results.items():
+        data = value.to_DataFrame().reset_index()
+        unpacked_tuple = key.split(',')
+        data['blocksize'] = unpacked_tuple[0]
+        data['rw'] = unpacked_tuple[1]
+        combined_results = combined_results.append(data)
+
+        best_runs[key] = value.best_run
+    logging.info(f"Saving combined csv to {output_folder}.csv")
+    combined_results.to_csv(f'{output_folder}.csv')
+    
+    optimal_rwmix_stacked_graph = pgreports.generate_rwmix_stacked_graph(best_runs)
+
+    pgreports.generate_fio_report(combined_results, output_folder)
+
+
 
 def main():
     logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -116,11 +133,11 @@ def main():
         logging.info(f"Finished {index+1} of {len(values_to_test)}:  {values[0]} {values[1]} {values[2]} ")
         logging.info(f"##################################################")
 
-
+    save_summary_output(results)
         
 
         
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
 
