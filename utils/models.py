@@ -80,9 +80,9 @@ class FioBase:
                 self.read_latency = json_result['jobs'][0]['read']['lat']['mean']
                 self.write_latency = json_result['jobs'][0]['write']['lat']['mean']
             else: 
-                logging.debug(f"read: {json_result['jobs'][0]['read']}")
-                self.read_latency = json_result['jobs'][0]['read']['lat_us']['mean']
-                self.write_latency = json_result['jobs'][0]['write']['lat_us']['mean']
+                # logging.debug(f"read: {json_result['jobs'][0]['read']}")
+                self.read_latency = json_result['jobs'][0]['read']['lat_ns']['mean'] /1000
+                self.write_latency = json_result['jobs'][0]['write']['lat_ns']['mean'] / 1000
             self.duration = json_result['jobs'][0]['elapsed']
             self.timestamp = json_result['time']
             self.summarize()
