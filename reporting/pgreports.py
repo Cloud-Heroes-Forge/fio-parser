@@ -47,40 +47,40 @@ def generate_total_throughput_chart(data: pd.DataFrame) -> plt.Figure:
     return fig
 
 def generate_rwmix_stacked_graphs(data: pd.DataFrame) -> plt.Figure:
-    # Group the dataframe by 'bs'
-    groups = data.groupby('bs')
-    # Initialize a dictionary to store the graphs
-    graphs = {}
-    # Iterate over the groups
-    for bs, group in groups:
-        # Group the group by 'rwmixread'
-        subgroups = group.groupby('rwmixread')
-        
-        # Initialize lists to store the x-axis labels and the data for each bar
-        labels = []
-        read_data = []
-        write_data = []
-        
-        # Iterate over the subgroups
-        for rwmixread, subgroup in subgroups:
-            # Add the rwmixread value to the x-axis labels
-            labels.append(rwmixread)
-            
-            # Add the read and write throughput values to their respective lists
-            read_data.append(subgroup['read_throughput'])
-            write_data.append(subgroup['write_throughput'])
-            
-        # Create a stacked bar graph
-        fig, ax = plt.subplots()
-        ax.bar(labels, read_data, label='Read')
-        ax.bar(labels, write_data, bottom=read_data, label='Write')
-        ax.set_title(f'BS={bs} Throughput Summary')
-        ax.set_xlabel('Read %')
-        ax.set_ylabel('Throughput (MB/s)')
-        ax.legend()
-        
-        # Add the graph to the dictionary
-        graphs[bs] = fig
+    """
+    Generates a stacked graph of read and write throughput for each blocksize.
+    """
+    
+    fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(8, 8), gridspec_kw={'height_ratios': [1, 1]})
+    # Create stacked (read and write) throughput graph for each blocksize on ax1
+    ax1.bar(x=data['read_percent'], height=data['read_throughput'], label='Read', color='blue', width=10)
+    ax1.bar(x=data['read_percent'], height=data['write_throughput'], label='Write', color='orange', width=10, bottom=data['read_throughput'])
+    # add a comment to the graph for total throughput on each bar
+    for i in range(len(data['read_percent'])):
+        ax1.annotate(f"{data['total_throughput'].values[i]:.0f} KiB/s",
+                xy=(data['read_percent'].values[i], data['total_throughput'].values[i]),
+                xytext=(data['read_percent'].values[i], data['total_throughput'].values[i] + 100)
+    )
+    ax1.set_xticks(data['read_percent'])
+    ax1.set_xlabel('Read Percentage')
+    ax1.set_xticklabels(data['read_percent'])
+    ax1.set_ylabel('Throughput (KiB/s)')
+    ax1.legend()
+
+    # Create line chart with avg_latency on right axis and total iops on left axis
+    ax2.plot(data['read_percent'], data['avg_latency'], label='Avg Latency', color='blue')
+    ax2.set_ylabel('Avg Latency (ms)')
+    ax2.set_xlabel('Read Percentage')
+    ax2.set_xticks(data['read_percent'])
+    ax2.set_xticklabels(data['read_percent'])
+    ax2.set_ylim(0, data['avg_latency'].max() * 1.1)
+    ax2.legend(loc='upper left')
+    ax3 = ax2.twinx()
+    ax3.plot(data['read_percent'], data['total_iops'], label='Total IOPS', color='orange')
+    ax3.set_ylabel('Total IOPS')
+    ax3.set_ylim(0, data['total_iops'].max() * 1.1)
+    ax3.legend(loc='upper right')
+    return fig
 
 
 def generate_fio_report(data: pd.DataFrame, report_file_path: str) -> None:

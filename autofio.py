@@ -11,6 +11,7 @@ from utils.parsers import parse_fio_config
 from argparse import ArgumentParser, Namespace
 from reporting import pgreports
 from datetime import datetime
+import matplotlib.pyplot as plt
 import logging
 
 def arg_parser_setup() -> Namespace:
@@ -65,20 +66,26 @@ def save_summary_output(results: Dict[str, FioOptimizer]) -> None:
     output_folder: str = os.path.join(os.getcwd(), 
                                       f'output/summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
     combined_results: pd.DataFrame = pd.DataFrame()
-    best_runs: Dict[str, FioBase] = {}
+    # best_runs: Dict[str, FioBase] = {}
+    best_runs_df: pd.DataFrame = pd.DataFrame()
     for key, value in results.items():
         data = value.to_DataFrame().reset_index()
         unpacked_tuple = key.split(',')
         data['blocksize'] = unpacked_tuple[0]
         data['rw'] = unpacked_tuple[1]
         combined_results = combined_results.append(data)
-
-        best_runs[key] = value.best_run
+        best_runs_df = best_runs_df.append(value.best_run.to_dict(), ignore_index=True)
+    # print(run.to_dict())
+    best_runs_df['blocksize'] = best_runs_df['blocksize'].astype(str)
+    best_runs_df['rw'] = best_runs_df['rw'].astype(str)
+    best_runs_df['rwmixread'] = best_runs_df['rwmixread'].astype(str)
     logging.info(f"Saving combined csv to {output_folder}.csv")
     combined_results.to_csv(f'{output_folder}.csv')
     
-    optimal_rwmix_stacked_graph = pgreports.generate_rwmix_stacked_graph(best_runs)
-
+    for blocksize in best_runs_df.groupby('blocksize'):
+        fig: plt.Figure = pgreports.generate_rwmix_stacked_graphs(blocksize)
+        fig.savefig(f'{output_folder}/{blocksize[0]}_rwmix.png')
+    
     pgreports.generate_fio_report(combined_results, output_folder)
 
 
@@ -138,6 +145,6 @@ def main():
 
         
 
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
 
