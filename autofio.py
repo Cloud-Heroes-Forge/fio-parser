@@ -84,9 +84,11 @@ def save_summary_output(results: Dict[tuple, FioOptimizer]) -> None:
     
     for blocksize, blocksize_df in best_runs_df.groupby('blocksize'):
         fig: plt.Figure = pgreports.generate_rwmix_stacked_graphs(blocksize_df)
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder, exist_ok=True)
         fig.savefig(f'{output_folder}/{blocksize[0]}_rwmix.png')
     
-    pgreports.generate_fio_report(combined_results, output_folder)
+    # pgreports.generate_fio_report(combined_results, output_folder)
 
 
 
