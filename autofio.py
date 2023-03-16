@@ -34,8 +34,8 @@ def arg_parser_setup() -> Namespace:
                         help='path to config file. Defaults to fio.ini')
     parser.add_argument('-e', '--email', nargs='+', 
                         action='append', help='list of emails to send notifications, defaults is none')
-    parser.add_argument('-s', '--slices', type=int, default=5,
-                        help='Number of slices to divide the IO Depth range into, defaults to 5')
+    parser.add_argument('-tw', '--throughputweight', type=int, default=1,
+                        help='Weight of Throughput for ATP calculation. Defaults to 1')
     # endregion advanced options
     #parser.add_argument('-mode', '--mode', default="max_io_rate", help="Mode to run fio in. Defaults to rw")
     parser.add_argument('-n', '--name', default="fio-test", help="Name of the fio job(s). Defaults to job1")
@@ -61,7 +61,7 @@ def save_single_output(fio_opt: FioOptimizer) -> None:
     except json.JSONDecodeError as jde:
         logging.debug(f'failed to save results: {jde}')
 
-def save_summary_output(results: Dict[str, FioOptimizer]) -> None:
+def save_summary_output(results: Dict[tuple, FioOptimizer]) -> None:
     logging.info("Saving Summary Output")
     output_folder: str = os.path.join(os.getcwd(), 
                                       f'output/summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
@@ -70,20 +70,20 @@ def save_summary_output(results: Dict[str, FioOptimizer]) -> None:
     best_runs_df: pd.DataFrame = pd.DataFrame()
     for key, value in results.items():
         data = value.to_DataFrame().reset_index()
-        unpacked_tuple = key.split(',')
-        data['blocksize'] = unpacked_tuple[0]
-        data['rw'] = unpacked_tuple[1]
+        data['blocksize'] = key[0]
+        data['rw'] = key[1]
         combined_results = combined_results.append(data)
         best_runs_df = best_runs_df.append(value.best_run.to_dict(), ignore_index=True)
-    # print(run.to_dict())
-    best_runs_df['blocksize'] = best_runs_df['blocksize'].astype(str)
-    best_runs_df['rw'] = best_runs_df['rw'].astype(str)
-    best_runs_df['rwmixread'] = best_runs_df['rwmixread'].astype(str)
+
+    # # print(run.to_dict())
+    # best_runs_df['blocksize'] = best_runs_df['blocksize'].astype(str)
+    # best_runs_df['rw'] = best_runs_df['rw'].astype(str)
+    # best_runs_df['rwmixread'] = best_runs_df['rwmixread'].astype(str)
     logging.info(f"Saving combined csv to {output_folder}.csv")
     combined_results.to_csv(f'{output_folder}.csv')
     
-    for blocksize in best_runs_df.groupby('blocksize'):
-        fig: plt.Figure = pgreports.generate_rwmix_stacked_graphs(blocksize)
+    for blocksize, blocksize_df in best_runs_df.groupby('blocksize'):
+        fig: plt.Figure = pgreports.generate_rwmix_stacked_graphs(blocksize_df)
         fig.savefig(f'{output_folder}/{blocksize[0]}_rwmix.png')
     
     pgreports.generate_fio_report(combined_results, output_folder)
@@ -130,7 +130,7 @@ def main():
         fio_optimizer.config['rwmixread'] = values[2]
         fio_optimizer.min = args.minimum if args.minimum > 0 else 1
         fio_optimizer.max = args.maximum if args.maximum > 0 else 65536
-        fio_optimizer.slices = args.slices if args.slices > 0 else 5
+        fio_optimizer.throughputweight = args.throughputweight if args.throughputweight > 0 else 1
 
         logging.debug(f"Optimizer Config: {fio_optimizer.config}")
         fio_optimizer.find_optimal_iodepth()

@@ -4,28 +4,6 @@ import numpy as np
 import pandas as pd
 import jinja2
 
-def generate_blocksize_summary(fio_results_df: pd.DataFrame) -> str:
-    """Generates a summary of all the blocksize parameters in the given fio results dataframe.
-
-    The summary includes the number of tests, the distinct blocksize values used in the tests, 
-    and the range and median of the blocksize values.
-
-    Args:
-        fio_results_df (pd.DataFrame): A pandas DataFrame containing fio results.
-
-    Returns:
-        str: A string containing the blocksize summary.
-    """
-    blocksize_summary = ''
-    blocksize_data = fio_results_df['blocksize'].unique()
-    for blocksize in blocksize_data:
-        data = fio_results_df[fio_results_df['blocksize'] == blocksize]
-        blocksize_summary += f"For blocksize={blocksize}: \n"
-        blocksize_summary += f"\t-Total Throughput: {data['total_bw'].mean():.2f} {data['bw_unit'].iloc[0]}\n"
-        blocksize_summary += f"\t-Total IOPS: {data['total_iops'].mean():.2f}\n"
-        blocksize_summary += f"\t-Average Latency: {data['latency_ms'].mean():.2f} ms\n"
-    return blocksize_summary
-
 def generate_total_throughput_chart(data: pd.DataFrame) -> plt.Figure:
     fig, ax1 = plt.subplots()
 

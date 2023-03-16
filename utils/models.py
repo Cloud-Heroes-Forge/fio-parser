@@ -114,7 +114,7 @@ class FioOptimizer:
                  config: dict = None, 
                  min: int = 1,
                  max: int = 256, 
-                 slices: int = 3):
+                 throughputweight: int = 1):
 
         self.runs: dict = runs if runs else {}
         self.config: dict = config if config else {}
@@ -122,7 +122,7 @@ class FioOptimizer:
         self.optimal_queue_depth: int = None
         self.min: int = min
         self.max: int = max
-        self.slices: int = slices
+        self.throughputweight: int = throughputweight
         self.tested_iodepths: list[int] = []
         self.runs_raw: dict = {}
         self.atp: ATP = None
@@ -147,7 +147,7 @@ class FioOptimizer:
             current_data = pd.DataFrame({'iodepth': iodepth, 
                                          'total_throughput': throughput, 
                                          'avg_latency': latency})
-            self.atp = ATP(current_data) 
+            self.atp = ATP(data=current_data, alpha=self.throughputweight) 
             # what is the maximum io depth where the latency is less than the throughput (x) value (which is ATP)
             optimal_iodepth = max(self.atp.j.name, 1)
             logging.info(f"Best IO Depth: {optimal_iodepth}")
@@ -161,11 +161,11 @@ class FioOptimizer:
                 retest_df_stddev = retest_df.std()
                 # logging.debug(f"Retest Dataframe: {retest_df}")
                 if retest_df_stddev['normlized_throughput'] > 0.05 or retest_df_stddev['normlized_latency'] > 0.05:
-                    logging.warning(f"Standard Deviation of Retest Dataframe is greater than 0.1: {retest_df_stddev}")
+                    logging.warning(f"Standard Deviation of Retest Dataframe is greater than 0.05: {retest_df_stddev}")
                     self.config['runtime'] = self.config['runtime'] + 2
                     logging.info(f"Runtime increased to {self.config['runtime']} seconds")
-                    queue_depths = [2**x for x in range(0,13) if 2**x < optimal_iodepth*4]
                     self.__reset()
+                    queue_depths = [2**x for x in range(0,13) if 2**x < optimal_iodepth*4]
                 else:
                     is_optimial = True
                     self.optimal_queue_depth = optimal_iodepth
