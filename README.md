@@ -1,33 +1,40 @@
-#Note: Only tested with fio version 3.x
+# Autofio.py
 
-# autofio.py 
+Autofio.py is a Python script that automates the process of running disk storage performance tests using the `fio` package. It allows users to easily specify block sizes, read percentages, and other parameters to test, and generates a set of reports with the results.
 
-Auto fio lets you run multiple fio tests and automatically tune some parameters for you. 
+## Requirements
+
+Autofio.py requires the `fio` package to be installed on the system.
+
+## Usage
+
+To use autofio.py, simply run the script with the desired parameters. The following command-line arguments are available:
+
+- `-h, --help`: Displays help message and exits.
+- `-v, --verbose`: Displays verbose output.
+- `-bs BLOCKSIZE [BLOCKSIZE ...], --blocksize BLOCKSIZE [BLOCKSIZE ...]`: Block sizes and IO types to test. Defaults to `"8K,randrw"`. For multiple block sizes, use the format `"BLOCKSIZE,IO_TYPE BLOCKSIZE,IO_TYPE"`.
+- `-rw READPERCENTAGES [READPERCENTAGES ...], --readpercentages READPERCENTAGES [READPERCENTAGES ...]`: Read percentages to test. Defaults to `"50"`. For multiple read percentages, use the format `"READ_PERCENTAGE READ_PERCENTAGE"`.
+- `-c CONFIG, --config CONFIG`: Path to the fio configuration file. Defaults to `"fio.ini"`.
+- `-e EMAIL [EMAIL ...], --email EMAIL [EMAIL ...]`: List of email addresses to send notifications to. Defaults to an empty list.
+- `-tw THROUGHPUTWEIGHT, --throughputweight THROUGHPUTWEIGHT`: Weight of throughput for ATP calculation. Defaults to `1`.
+- `-n NAME, --name NAME`: Name of the fio job(s). Defaults to `"job1"`.
+
+For example, to test with block sizes of 8K and 32K, and read percentages of 0, 25, 50, 75, and 100, run the following command:
+
+```
+python autofio.py -bs "8K,randrw 32K,rw" -rw "0 25 50 75 100"
+```
+
+## Output
+
+Autofio.py generates a report with the results of the performance tests. The report includes the following information:
+
+- Block size and IO type
+- Read percentage
+- Average throughput
+- Average IOPS
+- Average latency
+- ATP (Application Throughput Performance) score, calculated using the half-latency rule from the paper "Half-Latency Rule for Finding the Knee of the Latency Curve" by Naresh M. Patel found here: http://www.cs.cmu.edu/~naresh/papers/latency.pdf
 
 
-# fio-parser.py
-This repository contains code used to parse fio normal output (as in non json)
-As well as instructions for installing and running fio in both single and multi instance mode
-
-usage: fio-parser.py [-h] [--directory DIRECTORY]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --directory DIRECTORY, -d DIRECTORY
-                        Specify the directory with fio output files to parse.
-                        If none if provided, ./ is used
-
-Output looks something like this
-
-fio_file,reads,read_bw(MiB/s),read_lat(ms),writes,write_bw(MIB/s),write_lat(ms)
-output-vm32-iodepth200-filesize8G-bs64-rwmix100,69900,4372,352.57964
-output-vm32-iodepth200-filesize8G-bs64-rwmix75,38600,2416,478.70303,12900,809,494.06208
-output-vm32-iodepth200-filesize8G-bs64-rwmix50,21000,1316,604.07159,21000,1316,610.97722
-output-vm32-iodepth200-filesize8G-bs64-rwmix25,8636,540,695.76001,25800,1617,738.59605
-output-vm32-iodepth200-filesize8G-bs64-rwmix0,,,,28300,1770,881.72075
-output-vm32-iodepth100-filesize8G-bs64-rwmix100,65400,4089,191.61536
-output-vm32-iodepth100-filesize8G-bs64-rwmix75,36100,2256,256.18691,12100,755,276.21681
-output-vm32-iodepth100-filesize8G-bs64-rwmix50,22100,1380,284.67851,22100,1381,294.03005
-output-vm32-iodepth100-filesize8G-bs64-rwmix0,,,,27300,1708,462.75325
-output-vm32-iodepth100-filesize8G-bs64-rwmix25,8201,513,352.77054,24500,1534,403.34769
-
+The report is saved to an output folder in the same directory as the script.
