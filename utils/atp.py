@@ -22,6 +22,11 @@ class ATP():
     def __init__(self, 
                  data: pd.DataFrame,
                  alpha: int = 1) -> None:
+        self.data: pd.DataFrame = data
+        self.generated_data: pd.DataFrame = pd.DataFrame()
+        self.generated_data['throughput']: np.ndarray = np.linspace(start=self.data['total_throughput'].min(), 
+                                                                    stop=self.data['total_throughput'].max(), 
+                                                                    num=self.data['iodepth'].max())
         self.data: pd.DataFrame = data.set_index('iodepth')
         self.data.sort_index(inplace=True)
         self.data['through_normalized']: np.ArrayLike = self.data['total_throughput'] / self.data['total_throughput'].max()
@@ -34,22 +39,37 @@ class ATP():
         # ATP is (latency(x) * alpha) / ORT(x)
         self.data['ATP']: np.ArrayLike = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.data['total_throughput']])
         # make a range of total_throughput (x) values then calculate the latency_curve (y) values
-        self.throughput_x_range: np.ndarray = np.linspace(self.data['total_throughput'].min(), self.data['total_throughput'].max(), 1000)
-        self.latency_y_range: self.latency_curve(self.throughput_x_range)
-        self.ort_curve_y_range: np.ndarray = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.throughput_x_range])
-        self.atp_curve_y_range: np.ndarray = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.throughput_x_range])
-                
+
+
+        self.generated_data['avg_latency']: np.ndarray = self.latency_curve(self.generated_data['throughput'])
+        self.generated_data['ORT']: np.ndarray = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.generated_data['throughput']])
+        self.generated_data['ATP']: np.ndarray = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.generated_data['throughput']])
+        # self.latency_y_range: self.latency_curve(self.throughput_x_range)
+        # self.ort_curve_y_range: np.ndarray = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.throughput_x_range])
+        # self.atp_curve_y_range: np.ndarray = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.throughput_x_range])
+
         # Applying the half-latency rule, we can find j, the smallest index for which 2r(x) − w(x) ( 2*ORT - latency ) is negative
         # interpolate the total_throughput (x) and avg_latency (y) values of the intersection points of the doubled r-curve and the w-curve
         # The four coordinates enclosing the cross-over point are (x_j−1,2r_j−1) and (x_j ,2r_j ) for the doubled r-curve and (x_j−1,w_j−1) and (x_j ,w_j ) for the w-curve
         # Using linear interpolation between points, the value of the cross-over point (x∗ , w∗ ) of the doubled r-curve and the w-curve, and hence the ATP knee is given by:
         # try:
-        twoRxminusWx: pd.DataFrame = self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0]
+        # twoRxminusWx: pd.DataFrame = self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0]
+        # # logging.debug(f"twoRxminusWx: {twoRxminusWx}")
+        # if twoRxminusWx.empty:
+        #     # if all fails just pick the value of ATP closest to zero where latency is less than 10x the minimum latency
+        #     # TODO - this is a hack, need to find a better way to do this
+        #     self.j = self.data[self.data['avg_latency'] < self.data['avg_latency'].min() * 10].sort_values(by='ATP', ascending=True).iloc[0]
+        # else: 
+        #     self.j = twoRxminusWx[twoRxminusWx < 0].sort_values(by='ATP', ascending=True).iloc[0]
+        twoRxminusWx: pd.DataFrame = self.generated_data[((2 * self.generated_data['ORT']) - self.generated_data['avg_latency']) < 0]
         # logging.debug(f"twoRxminusWx: {twoRxminusWx}")
         if twoRxminusWx.empty:
             # if all fails just pick the value of ATP closest to zero where latency is less than 10x the minimum latency
             # TODO - this is a hack, need to find a better way to do this
             self.j = self.data[self.data['avg_latency'] < self.data['avg_latency'].min() * 10].sort_values(by='ATP', ascending=True).iloc[0]
+        else: 
+            self.j = twoRxminusWx[twoRxminusWx < 0].sort_values(by='ATP', ascending=True).iloc[0]
+
             # logging.debug(f"closest_to_zero: {closest_to_zero}")
             # below_knee = self.data.loc[self.data['avg_latency'] < self.data['avg_latency'].min() * 10]
             # temp_curve = calculate_latency_curve(below_knee['total_throughput'], below_knee['avg_latency'])
@@ -61,8 +81,7 @@ class ATP():
             #     self.j = self.data[self.data['ATP'] == self.data['ATP'].min()].iloc[0]
             # else:
             #     self.j = twoRxminusWx[twoRxminusWx < 0].sort_values(by='ATP', ascending=True).iloc[0]
-        else: 
-            self.j = twoRxminusWx[twoRxminusWx < 0].sort_values(by='ATP', ascending=True).iloc[0]
+
 
         # except IndexError:
         #     logging.debug(f"IndexError: {self.data[2 * self.data['ORT'] - self.data['avg_latency'] < 0]}")
@@ -111,7 +130,7 @@ class ATP():
     #     return fio.iops_latency_ratio
 
 
-    def __calculate_latency_points(self) -> Polynomial:
+    def __calculate_latency_points(self, curve, x) -> Polynomial:
         """
         Computes the latency values for a given throughput range
 
@@ -120,8 +139,8 @@ class ATP():
         Returns:
         w(x) over the range 0,x
         """
-        latency_mathed = self.latency_curve(self.throughput_x_range) 
-        return latency_mathed
+        return curve(x) 
+        
     
     def __calculate_ort(self, x: float, curve: Polynomial) -> float:
         """

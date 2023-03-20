@@ -153,7 +153,7 @@ class FioOptimizer:
             optimal_iodepth = max(self.atp.j.name, 1)
             logging.info(f"Best IO Depth: {optimal_iodepth}")
             # build a new list of queue depths to test
-            queue_depths = [x for x in range(optimal_iodepth - 2, optimal_iodepth + 3) if x > 0]
+            queue_depths = [x for x in range(optimal_iodepth - 1, optimal_iodepth + 2) if x > 0]
             
             if all(queue_depth in self.tested_iodepths for queue_depth in queue_depths):
                 retest_df = self.__validate_optimal_iodepth(optimal_iodepth)
