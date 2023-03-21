@@ -4,3 +4,4 @@ matplotlib
 xlsxwriter
 psutil
 jinja2
+scipy
