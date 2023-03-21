@@ -67,22 +67,13 @@ class ATP():
         # Applying the half-latency rule, we can easily find j, the smallest index for which 2rj − wj is negative.
         # Find the smallest index where ort * 2 - avg_latency is negative
         new_index: pd.DataFrame = pd.DataFrame()
-        i = 0; 
         while new_index.dropna().empty:
-            i = i + 1
             self.generated_data['avg_latency']: np.ndarray = self.latency_curve(self.generated_data['throughput'])
             self.generated_data['ORT']: np.ndarray = np.array([self.__calculate_ort(x=x, curve=self.latency_curve) for x in self.generated_data['throughput']])
             self.generated_data['ATP']: np.ndarray = np.array([self.__calculate_atp(x=x, curve=self.latency_curve) for x in self.generated_data['throughput']])
             new_index: pd.DataFrame = self.generated_data[((2 * self.generated_data['ORT']) - self.generated_data['avg_latency']) < 0].sort_values(by='ATP', ascending=True)
             if new_index.dropna().empty:
-                # if self.data.index.argmax() + i > self.generated_data:
-                #     [self.generated_data['avg_latency'] < self.generated_data['avg_latency'].quantile(0.50)].sample(n=1)
-                logging.warning(f"Could not find a value of j, dropping top 30% of latency data set: {self.generated_data.size} ")
-                #     new_index = self.data.index.max()
-                #     break
-                # self.generated_data['throughput']= np.linspace(start=self.data['total_throughput'].min(), 
-                #                                                stop=self.data['total_throughput'].max(), 
-                #                                                num=self.data.index.argmax())
+                logging.warning(f"Could not find a value of j, dropping top 10% of latency data set: {self.generated_data.size} ")
                 self.generated_data = self.generated_data[self.generated_data['avg_latency'] < self.generated_data['avg_latency'].quantile(0.90)]
                 self.latency_curve = calculate_latency_curve(self.generated_data['throughput'], self.generated_data['avg_latency'])
             else: 
